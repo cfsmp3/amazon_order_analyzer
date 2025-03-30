@@ -6,7 +6,7 @@
     <title>Amazon Order History Analyzer</title>
 
     <style>
-        /* CSS styles remain the same as the previous version with the yearly table */
+        /* CSS remains the same */
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
         h1, h2 { text-align: center; color: #333; }
         button { display: block; margin: 20px auto; padding: 12px 25px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; transition: background-color 0.3s ease; }
@@ -15,8 +15,6 @@
         #chartContainer { position: relative; aspect-ratio: 2 / 1; }
         #yearlySpendContainer, #summaryContainer { background-color: #e9f5ff; border: 1px solid #b3d7ff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         #orderChart { max-width: 100%; max-height: 70vh; }
-
-        /* --- Yearly Spend Table --- */
         .table-responsive { overflow-x: auto; max-height: 400px; }
         #yearlySpendTable { width: 100%; border-collapse: collapse; margin-top: 10px; }
         #yearlySpendTable th, #yearlySpendTable td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
@@ -29,20 +27,13 @@
         .order-id-cell { cursor: help; color: #0056b3; text-decoration: underline dotted; }
         #yearlySpendTable tr.year-separator td { border-top: 2px solid #999; }
         #yearlySpendTable tr.year-separator:first-child td { border-top: 1px solid #ddd; }
-
-        /* --- Summary --- */
         #summaryContentList { list-style: none; padding: 0; margin: 10px 0 0 0; text-align: center; }
-         #summaryContentList li { font-size: 18px; font-weight: bold; margin-bottom: 5px;}
-
+        #summaryContentList li { font-size: 18px; font-weight: bold; margin-bottom: 5px;}
         #status { text-align: center; margin-top: 15px; font-style: italic; color: #555; }
         #error { text-align: center; margin-top: 15px; color: red; font-weight: bold; white-space: pre-wrap; }
         .hidden { display: none; }
-
-        /* --- Tooltip --- */
         .tooltip { position: absolute; background-color: rgba(0, 0, 0, 0.85); color: white; padding: 10px 15px; border-radius: 5px; font-size: 12px; white-space: pre-wrap; z-index: 1000; max-width: 400px; pointer-events: none; box-shadow: 0 2px 5px rgba(0,0,0,0.3); left: -9999px; top: -9999px; }
         .tooltip strong { display: inline-block; min-width: 120px; margin-right: 8px; color: #aaa; }
-
-        /* --- Instructions Panel --- */
         .instructions-panel { max-width: 800px; margin: 25px auto; padding: 15px 20px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .instructions-panel summary { font-weight: bold; cursor: pointer; padding: 5px 0; color: #333; outline: none; }
         .instructions-panel summary:hover { color: #0056b3; }
@@ -64,7 +55,7 @@
         <p>The source code is available on <a href="https://github.com/cfsmp3/amazon_order_analyzer" target="_blank" rel="noopener noreferrer">Github</a>.</p>
         <p>In order to download the data from Amazon visit Amazon's <a href="https://www.amazon.com/gp/privacycentral/dsar/preview.html" target="_blank" rel="noopener noreferrer">"Request your data" page</a>. Select "Your orders". Once the data is ready you will be able to download a .zip file with all the historical information. That's the file you need to submit here for processing.</p>
         <!-- Updated Note -->
-        <p><strong>Stock Data Note:</strong> An attempt is made to fetch Amazon stock price data from a public, unofficial source (Yahoo Finance). Due to browser security restrictions (CORS), **this fetch will likely fail** when run directly or from most web hosts. If it fails, the chart will display without stock data, and a note will appear in the error area below.</p>
+        <p><strong>Stock Data Note:</strong> Amazon stock price data is loaded from a static file hosted online. Due to browser security restrictions (CORS), fetching this data **will likely fail** when you run this HTML file directly from your computer (<code>file:///</code>). It should work correctly when accessed via its web URL (<a href="https://amazonorderanalyzer.netlify.app" target="_blank">amazonorderanalyzer.netlify.app</a>).</p>
         <p><em>This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate.</em></p>
     </details>
     <!-- End Instructions Panel -->
@@ -130,11 +121,11 @@
         let hideTooltipTimeoutId = null;
 
         // --- Event Listeners ---
-        if (uploadButton && zipInput) { /* ... */ uploadButton.addEventListener('click', () => zipInput.click()); zipInput.addEventListener('change', handleFileChange); } else { showError("Initialization Error: Page elements missing."); }
-        if (yearlySpendTableBody) { /* ... */ yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow); yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove); }
+        if (uploadButton && zipInput) { uploadButton.addEventListener('click', () => zipInput.click()); zipInput.addEventListener('change', handleFileChange); } else { showError("Initialization Error: Page elements missing."); }
+        if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow); yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove); }
         if (yearlySpendContainer) { yearlySpendContainer.addEventListener('mouseout', handleTooltipHide); } else if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseout', handleTooltipHide); console.warn("Attaching mouseout listener to table body as fallback."); }
 
-        function handleFileChange(event) { /* ... (Reset logic from previous version) ... */ if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
+        function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
 
         // --- UI Helpers ---
         function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
@@ -148,35 +139,47 @@
         function handleTooltipMove(event) { if (!tooltipDiv || tooltipDiv.classList.contains('hidden') || !activeTooltipCell) return; const offsetX = 15; const offsetY = 10; let x = event.clientX + offsetX; let y = event.clientY + offsetY; const tooltipRect = tooltipDiv.getBoundingClientRect(); const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight; if (x + tooltipRect.width > viewportWidth) x = event.clientX - tooltipRect.width - offsetX; if (y + tooltipRect.height > viewportHeight) y = event.clientY - tooltipRect.height - offsetY; if (y < 0) y = 0; if (x < 0) x = 0; tooltipDiv.style.left = `${x}px`; tooltipDiv.style.top = `${y}px`; }
         function escapeHtml(unsafe) { if (unsafe == null) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-        // --- Stock Data Fetch (Will likely fail due to CORS) ---
-        async function fetchStockData(ticker, startDate, endDate) {
-            if (!startDate || !endDate) { console.warn("Stock fetch skipped: Invalid date range."); return null; }
-            const startTimestamp = Math.floor(startDate.getTime() / 1000);
-            const endTimestamp = Math.floor(endDate.getTime() / 1000) + 86400;
-            // **WARNING: Unofficial Endpoint - CORS will likely block this**
-            const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=history`;
-            console.log(`Attempting to fetch stock data from: ${url}`);
+        // --- Stock Data Fetch from CSV (Using Absolute URL - CORS WILL LIKELY BLOCK WHEN RUN LOCALLY) ---
+        async function fetchStockDataFromCSV(url = 'https://amazonorderanalyzer.netlify.app/amzn_stock_data.csv') { // Use absolute URL
+            console.log(`Fetching stock data from CSV: ${url}`);
             try {
-                const response = await fetch(url, { mode: 'cors' }); // Standard CORS request
+                const response = await fetch(url); // No mode specified, implies 'cors' by default
                 if (!response.ok) { throw new Error(`Fetch failed: ${response.status} ${response.statusText}`); }
-                const data = await response.json();
-                if (!data?.chart?.result?.[0]?.timestamp || !data.chart.result[0].indicators?.quote?.[0]?.close) { throw new Error("Unexpected stock API response structure."); }
-                const timestamps = data.chart.result[0].timestamp;
-                const closePrices = data.chart.result[0].indicators.quote[0].close;
-                const stockPoints = timestamps.map((ts, index) => { const price = closePrices[index]; if (ts != null && price != null) { return { x: new Date(ts * 1000), y: price }; } return null; }).filter(point => point !== null);
-                console.log(`Successfully processed ${stockPoints.length} stock data points (though CORS likely blocked access).`); // Acknowledge potential block
-                return stockPoints;
+                const csvString = await response.text();
+
+                return new Promise((resolve, reject) => {
+                    Papa.parse(csvString, {
+                        header: true, skipEmptyLines: true, dynamicTyping: false,
+                        complete: (results) => {
+                            try {
+                                if (results.errors.length > 0) console.warn('PapaParse errors in stock CSV:', results.errors);
+                                if (!results.data || results.data.length === 0) throw new Error("Stock CSV parsed but empty.");
+                                const headers = results.meta.fields.map(h => h.trim());
+                                const dateHeader = findHeader(headers, ["Date"]);
+                                const closeHeader = findHeader(headers, ["Adjusted_close", "Adjusted Close"]);
+                                if (!dateHeader || !closeHeader) throw new Error(`Stock CSV missing required headers ('Date', 'Adjusted_close'). Found: ${headers.join(', ')}`);
+                                const stockPoints = results.data.map(row => { const dateStr = row[dateHeader]; const closeStr = row[closeHeader]; if (dateStr && closeStr) { const date = new Date(`${dateStr}T00:00:00`); const close = parseFloat(closeStr); if (!isNaN(date.getTime()) && !isNaN(close) && isFinite(close)) { return { x: date, y: close }; } } return null; }).filter(point => point !== null);
+                                console.log(`Successfully processed ${stockPoints.length} stock data points from CSV.`);
+                                resolve(stockPoints);
+                            } catch (processingError) { reject(processingError); }
+                        }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); }
+                    });
+                });
+
             } catch (error) {
-                 console.error("Error fetching/processing stock data:", error);
-                 let errorMsg = `Note: Could not fetch stock data for ${ticker}. This is likely due to browser security (CORS). Chart will display without it. (${error.message})`;
-                 // Append to existing errors if any
-                 if (errorDiv) {
-                    errorDiv.textContent = errorDiv.textContent ? (errorDiv.textContent + "\n" + errorMsg) : errorMsg;
-                    errorDiv.classList.remove('hidden'); // Ensure error div is visible
+                 console.error("Error fetching/processing stock CSV:", error);
+                 let errorMsg = `Note: Could not load stock data CSV. `;
+                 if (window.location.protocol === 'file:') {
+                     errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature will only work when the tool is accessed via its web URL. (${error.message})`;
+                 } else {
+                      // If already on web URL, it might be network or file not found
+                     errorMsg += `Please check the file exists at the specified URL and network is available. (${error.message})`;
                  }
+                 if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + errorMsg) : errorMsg; errorDiv.classList.remove('hidden'); }
                  return null; // Indicate failure
             }
         }
+
 
         // --- Core Processing Logic ---
         async function processZipFile(file) {
@@ -189,82 +192,32 @@
                 const fileProcessingPromises = [];
                 const allDataPoints = [];
                 const yearlyData = {};
-                let minOrderDate = null;
-                let maxOrderDate = null;
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
-                zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop ... */
-                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) {
-                        const promise = zipEntry.async('string').then(csvString => {
-                             return new Promise((resolve, reject) => {
-                                if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`));
-                                Papa.parse(csvString, {
-                                    header: true, skipEmptyLines: true, dynamicTyping: false,
-                                    complete: (results) => {
-                                        try {
-                                            // Minimal logging now
-                                            if (!results.meta?.fields) { return resolve(); } // Skip if no headers
-                                            if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors);
-
-                                            const headers = results.meta.fields.map(h => h ? h.trim() : '');
-                                            const dateHeader = findHeader(headers, ["Order Date", "Order date"]);
-                                            const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]);
-                                            const currencyHeader = findHeader(headers, ["Currency"]);
-                                            const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]);
-
-                                            if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } // Skip if core headers missing
-
-                                            let skipped = 0; let filePoints = 0;
-
-                                            results.data.forEach((row, index) => { /* ... Row processing ... */
-                                                if (!row || typeof row !== 'object') { skipped++; return; }
-                                                const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase();
-                                                if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) {
-                                                    try {
-                                                        const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr);
-                                                        if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) {
-                                                            filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name });
-                                                            if (!minOrderDate || date < minOrderDate) minOrderDate = date; if (!maxOrderDate || date > maxOrderDate) maxOrderDate = date;
-                                                            const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; }
-                                                        } else { skipped++; }
-                                                    } catch (parseErr) { skipped++; }
-                                                } else { skipped++; }
-                                            }); // End row processing
-                                            if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`);
-                                            resolve();
-                                        } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); }
-                                    }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`))
-                                }); // End Papa.parse
-                             }); // End Promise
-                        }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); });
-                        fileProcessingPromises.push(promise);
-                    } // End if CSV
-                }); // end zip.forEach
+                zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop (same as previous) ... */
+                     if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) { const promise = zipEntry.async('string').then(csvString => { return new Promise((resolve, reject) => { if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`)); Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: false, complete: (results) => { try { if (!results.meta?.fields) { return resolve(); } if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors); const headers = results.meta.fields.map(h => h ? h.trim() : ''); const dateHeader = findHeader(headers, ["Order Date", "Order date"]); const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]); const currencyHeader = findHeader(headers, ["Currency"]); const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]); if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } let skipped = 0; let loggedSkip = false; let filePoints = 0; results.data.forEach((row, index) => { if (!row || typeof row !== 'object') { skipped++; return; } const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase(); if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) { try { const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr); if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) { filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name }); const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; } } else { if(!loggedSkip) loggedSkip = true; skipped++; } } catch (parseErr) { if(!loggedSkip) loggedSkip = true; skipped++; } } else { if(!loggedSkip) loggedSkip = true; skipped++; } }); if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`); resolve(); } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); } }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`)) }); }); }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); }); fileProcessingPromises.push(promise); } });
 
                 await Promise.allSettled(fileProcessingPromises);
 
-                statusDiv.textContent = 'Attempting stock fetch & generating reports...'; // Update status
+                statusDiv.textContent = 'Fetching stock data & generating reports...';
                 console.log(`Finished CSV processing. Found ${allDataPoints.length} total valid order data points.`);
 
                 let stockData = null;
-                if (allDataPoints.length > 0 && minOrderDate && maxOrderDate) {
-                     console.log(`Order date range: ${minOrderDate.toISOString()} to ${maxOrderDate.toISOString()}`);
-                     stockData = await fetchStockData('AMZN', minOrderDate, maxOrderDate); // Attempt fetch
-                } else { console.log("No valid order data points found or date range invalid, skipping stock data fetch."); }
+                if (allDataPoints.length > 0) {
+                    stockData = await fetchStockDataFromCSV(); // Use new function
+                } else { console.log("No valid order data points found, skipping stock data fetch."); }
 
                 if (allDataPoints.length > 0) {
                     const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
                     const currencyList = Object.keys(currencyDataMap).sort(); console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
 
                     generateChart(currencyDataMap, stockData); // Pass maybe-null stockData
-                    // No legend function
                     generateYearlySpend(yearlyData);
                     generateSummary(yearlyData);
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // Don't clear errorDiv completely if stock fetch failed
-                    // errorDiv.textContent = '';
+                    // errorDiv might contain stock fetch note, don't clear it
                     showOutputContainers(true);
                 } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
@@ -272,44 +225,25 @@
 
         // --- Chart Generation (Handles Stock Data, Scatter, Legend Fix) ---
         function generateChart(currencyDataMap, stockData) {
-            if (!ctx) return showError("Cannot generate chart, canvas context is invalid.");
+             if (!ctx) return showError("Cannot generate chart, canvas context is invalid.");
             const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length);
-
-            // Order Datasets (Scatter)
             currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); });
-
-             // Stock Data Dataset (Line)
              const hasStockData = stockData && stockData.length > 0;
              if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); }
              else { console.log("No stock data to plot or fetch failed."); }
-
-            if (currentChart) currentChart.destroy(); currentChart = null;
-            if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
-
+            if (currentChart) currentChart.destroy(); currentChart = null; if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
             try {
                  const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } };
                  if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; }
-
-                currentChart = new Chart(ctx, {
-                    type: 'line', data: { datasets },
-                    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, }
-                });
+                currentChart = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, } });
             } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } }
         }
 
-        // REMOVED generateLegend function
-
-        // --- Yearly Spend Generation ---
-        function generateYearlySpend(yearlyData) { /* ... (keep previous version) ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode, index) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} total.`, e); } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} max amount.`, e); } } else { amountCell.textContent = 'N/A'; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { console.error(`Failed to stringify order details for year ${year}:`, e); orderCell.dataset.orderDetails = '{"error": "Could not serialize details"}'; } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
-
-        // --- Summary Generation ---
-        function generateSummary(yearlyData) { /* ... (keep previous version) ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
-
-        // --- Helper Functions ---
+        // Yearly Spend / Summary / Helpers / Init: Keep previous versions
+        function generateYearlySpend(yearlyData) { /* ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode, index) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} total.`, e); } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} max amount.`, e); } } else { amountCell.textContent = 'N/A'; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { console.error(`Failed to stringify order details for year ${year}:`, e); orderCell.dataset.orderDetails = '{"error": "Could not serialize details"}'; } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
+        function generateSummary(yearlyData) { /* ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
         function generateDistinctColors(count) { if (count <= 0) return []; const colors = []; const sat = 70; const light = 50; const step = count > 1 ? 360 / count : 0; for (let i = 0; i < count; i++) colors.push(`hsl(${Math.round(i * step) % 360}, ${sat}%, ${light}%)`); return colors; }
         function findHeader(actualHeaders, potentialNames) { const potentialLower = potentialNames.map(n => n.toLowerCase()); for (const header of actualHeaders) { const trimmedHeader = header ? header.trim() : ''; if (trimmedHeader && potentialLower.includes(trimmedHeader.toLowerCase())) return trimmedHeader; } return null; }
-
-        // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => { if (canvas && !ctx) ctx = canvas.getContext('2d'); if (!ctx && canvas) console.error("Canvas context failed"); else if (!canvas) console.error("Canvas not found"); });
 
     </script>
