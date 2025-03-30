@@ -13,7 +13,8 @@
         button:hover { background-color: #0056b3; }
         .data-container { margin: 20px auto; padding: 15px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); max-width: 90vw; }
         #chartContainer { position: relative; aspect-ratio: 2 / 1; }
-        #yearlySpendContainer, #summaryContainer { background-color: #e9f5ff; border: 1px solid #b3d7ff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #yearlySpendContainer { background-color: #e9f5ff; border: 1px solid #b3d7ff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #summaryContainer, #shareEquivalentSummary { background-color: #e9f5ff; border: 1px solid #b3d7ff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); } /* Grouped style */
         #orderChart { max-width: 100%; max-height: 70vh; }
         .table-responsive { overflow-x: auto; max-height: 400px; }
         #yearlySpendTable { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -43,6 +44,21 @@
         .instructions-panel a { color: #007bff; text-decoration: none; }
         .instructions-panel a:hover { text-decoration: underline; }
         .instructions-panel em { font-size: 13px; color: #666; }
+
+        /* --- Share Equivalent Summary --- */
+        #shareEquivalentSummary {
+            background-color: #fff; /* White background */
+            border: 1px solid #ccc;
+            text-align: center;
+        }
+        #shareEquivalentSummary h2 { margin-bottom: 15px; }
+        #shareEquivalentSummary p { font-size: 16px; margin: 10px 0; color: #333; }
+        #shareEquivalentSummary .value { font-weight: bold; color: #0056b3; }
+        #shareEquivalentSummary .millionaire-status { margin-top: 20px; font-size: 18px; }
+        #shareEquivalentSummary .answer { font-weight: bold; font-size: 20px; padding: 3px 8px; border-radius: 4px; }
+        #shareEquivalentSummary .answer-yes { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
+        #shareEquivalentSummary .answer-no { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+
     </style>
 </head>
 <body>
@@ -94,6 +110,24 @@
         <ul id="summaryContentList"></ul>
     </div>
 
+     <!-- Share Equivalent Summary -->
+    <div id="shareEquivalentSummary" class="data-container hidden">
+        <h2>Investment Perspective</h2>
+        <p id="totalSharesEquivalent">
+            Total AMZN shares you would own today if you had bought stock instead of ordering (USD orders):
+            <span class="value">--</span>
+        </p>
+        <p id="totalSharesValue">
+            Value at last known share price (<span id="lastStockDate">N/A</span>):
+            <span class="value">--</span>
+        </p>
+        <p id="millionaireStatus" class="millionaire-status hidden"> <!-- Hide initially -->
+            Would you be a millionaire? <span class="answer">--</span>
+        </p>
+    </div>
+    <!-- End Share Equivalent Summary -->
+
+
     <div id="orderTooltip" class="tooltip hidden"></div>
 
     <!-- Library Scripts -->
@@ -116,6 +150,14 @@
         const summaryContentList = document.getElementById('summaryContentList');
         const tooltipDiv = document.getElementById('orderTooltip');
         const canvas = document.getElementById('orderChart');
+        // New Share Summary Elements
+        const shareEquivalentSummary = document.getElementById('shareEquivalentSummary');
+        const totalSharesEquivalent = document.getElementById('totalSharesEquivalent');
+        const totalSharesValue = document.getElementById('totalSharesValue');
+        const lastStockDateSpan = document.getElementById('lastStockDate');
+        const millionaireStatus = document.getElementById('millionaireStatus');
+        const millionaireAnswerSpan = millionaireStatus?.querySelector('.answer');
+
         let ctx = null;
         let currentChart = null;
         let activeTooltipCell = null;
@@ -129,10 +171,10 @@
         function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
 
         // --- UI Helpers ---
-        function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
-        function showOutputContainers(hasData = true) { if (!hasData) return; [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (!el) return; let show = false; if (el === chartContainer && currentChart) show = true; else if (el === yearlySpendContainer && yearlySpendTableBody?.querySelector('tr')) show = true; else if (el === summaryContainer && summaryContentList?.querySelector('li')) show = true; if (show) el.classList.remove('hidden'); else el.classList.add('hidden'); }); }
+        function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
+        function showOutputContainers(hasData = true) { if (!hasData) return; [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (!el) return; let show = false; if (el === chartContainer && currentChart) show = true; else if (el === yearlySpendContainer && yearlySpendTableBody?.querySelector('tr')) show = true; else if (el === summaryContainer && summaryContentList?.querySelector('li')) show = true; else if (el === shareEquivalentSummary && totalSharesEquivalent?.querySelector('.value')?.textContent !== '--') show = true; if (show) el.classList.remove('hidden'); else el.classList.add('hidden'); }); }
         function clearContainerContent(container, keepSelector = null) { if (!container) return; const nodesToRemove = []; container.childNodes.forEach(node => { let keep = false; if (keepSelector && node.nodeType === Node.ELEMENT_NODE && node.matches(keepSelector)) keep = true; if (!keep) nodesToRemove.push(node); }); nodesToRemove.forEach(node => container.removeChild(node)); }
-        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; hideOutputContainers(); } // Modified to show errors better
+        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; hideOutputContainers(); }
 
         // --- Tooltip Handlers (Revised Show/Hide with Timeout) ---
         function handleTooltipShow(event) { const targetCell = event.target.closest('.order-id-cell'); if (!targetCell || !tooltipDiv) return; if (hideTooltipTimeoutId) { clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; } if (targetCell === activeTooltipCell && !tooltipDiv.classList.contains('hidden')) { return; } activeTooltipCell = targetCell; const detailsJson = targetCell.dataset.orderDetails; if (!detailsJson) { activeTooltipCell = null; return; } try { const orderData = JSON.parse(detailsJson); let tooltipContent = ''; for (const [key, value] of Object.entries(orderData)) { if (value != null && String(value).trim() !== '' && key !== 'orderDetailsJson') tooltipContent += `<strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}<br>`; } tooltipDiv.innerHTML = tooltipContent || 'No details available.'; tooltipDiv.classList.remove('hidden'); handleTooltipMove(event); } catch (e) { console.error("Failed to parse order details JSON:", e); tooltipDiv.textContent = 'Error loading details.'; tooltipDiv.classList.remove('hidden'); activeTooltipCell = null; } }
@@ -160,9 +202,9 @@
                                 if (!dateHeader || !closeHeader) throw new Error(`Stock CSV missing required headers ('Date', 'Adjusted_close'). Found: ${headers.join(', ')}`);
                                 const stockPoints = results.data.map(row => { const dateStr = row[dateHeader]; const closeStr = row[closeHeader]; if (dateStr && closeStr) { const date = new Date(`${dateStr}T00:00:00`); const close = parseFloat(closeStr); if (!isNaN(date.getTime()) && !isNaN(close) && isFinite(close)) { return { x: date, y: close }; } } return null; }).filter(point => point !== null);
                                 console.log(`Successfully processed ${stockPoints.length} stock data points from CSV.`);
-                                resolve(stockPoints);
-                            } catch (processingError) { reject(processingError); }
-                        }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); }
+                                resolve(stockPoints); // Resolve with data
+                            } catch (processingError) { reject(processingError); } // Reject on processing error
+                        }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); } // Reject on parse error
                     });
                 });
             } catch (error) {
@@ -174,6 +216,7 @@
                  return null; // Indicate failure
             }
         }
+
 
         // --- Core Processing Logic ---
         async function processZipFile(file) {
@@ -188,10 +231,13 @@
                 const yearlyData = {}; // Structure: { year: { currencyCode: { total:..., maxOrderInfo:..., usdShareEquivalent?:... } } }
                 let minOrderDate = null;
                 let maxOrderDate = null;
+                let grandTotalShareEquivalent = 0; // Initialize grand total for shares
+                let lastStockPrice = null; // To store the most recent price found
+                let lastStockDate = null; // To store the date of the most recent price
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
-                zip.forEach((relativePath, zipEntry) => {
+                zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop ... */
                     if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) {
                         const promise = zipEntry.async('string').then(csvString => {
                              return new Promise((resolve, reject) => {
@@ -209,7 +255,6 @@
                                             const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]);
                                             if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); }
                                             let skipped = 0; let filePoints = 0;
-
                                             results.data.forEach((row, index) => {
                                                 if (!row || typeof row !== 'object') { skipped++; return; }
                                                 const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase();
@@ -240,27 +285,31 @@
                 statusDiv.textContent = 'Fetching stock data & generating reports...';
                 console.log(`Finished CSV processing. Found ${allDataPoints.length} total valid order data points.`);
 
-                let stockDataPoints = null; // Raw points from fetch
-                let stockPriceMap = null; // Map for lookup
+                let stockDataPoints = null;
+                let stockPriceMap = null;
 
                 if (allDataPoints.length > 0) {
                     stockDataPoints = await fetchStockDataFromCSV(); // Fetch CSV data
 
-                    // Create Stock Price Lookup Map
                     if (stockDataPoints) {
                         stockPriceMap = new Map();
-                        stockDataPoints.forEach(point => {
+                        stockDataPoints.forEach(point => { // Build map AND find last price/date
                             try {
-                                const dateKey = point.x.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' format (local)
+                                const dateKey = point.x.toLocaleDateString('en-CA');
                                 stockPriceMap.set(dateKey, point.y);
+                                if (!lastStockDate || point.x > lastStockDate) {
+                                    lastStockDate = point.x; lastStockPrice = point.y;
+                                }
                             } catch (e) { console.warn("Error creating date key for stock map:", point.x, e); }
                         });
                         console.log(`Created stock price map with ${stockPriceMap.size} entries.`);
+                        if (lastStockPrice) console.log(`Last stock price found: ${lastStockPrice} on ${lastStockDate.toLocaleDateString('en-CA')}`);
                     }
 
-                    // Calculate Share Equivalents
+                    // Calculate Share Equivalents and GRAND TOTAL
                     if (stockPriceMap && stockPriceMap.size > 0) {
                         console.log("Calculating USD share equivalents...");
+                        grandTotalShareEquivalent = 0; // Reset just in case
                         allDataPoints.forEach(point => {
                             if (point.currency === 'USD') {
                                 try {
@@ -269,14 +318,13 @@
                                     if (stockPriceForDay && stockPriceForDay > 0) {
                                         const shareEquivalent = point.y / stockPriceForDay;
                                         const year = point.x.getFullYear();
-                                        if (yearlyData[year] && yearlyData[year]['USD']) {
-                                            yearlyData[year]['USD'].usdShareEquivalent += shareEquivalent;
-                                        }
-                                    } // else { console.warn(`No stock price for ${orderDateKey}`); } // Optional: Warning if no stock price found
+                                        if (yearlyData[year] && yearlyData[year]['USD']) { yearlyData[year]['USD'].usdShareEquivalent += shareEquivalent; }
+                                        grandTotalShareEquivalent += shareEquivalent; // Accumulate grand total
+                                    }
                                 } catch (e) { console.error("Error during share equivalent calculation:", e, point); }
                             }
                         });
-                        console.log("Finished calculating share equivalents.");
+                        console.log(`Finished calculating share equivalents. Grand Total: ${grandTotalShareEquivalent.toFixed(4)} shares.`);
                     } else { console.warn("Stock price map empty/unavailable, cannot calculate share equivalents."); }
 
                 } else { console.log("No valid order data points found, skipping stock data fetch and calculations."); }
@@ -285,58 +333,72 @@
                     const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
                     const currencyList = Object.keys(currencyDataMap).sort(); console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
 
-                    generateChart(currencyDataMap, stockDataPoints); // Pass raw stock points
-                    generateYearlySpend(yearlyData); // Contains share equivalents now
+                    generateChart(currencyDataMap, stockDataPoints);
+                    generateYearlySpend(yearlyData);
                     generateSummary(yearlyData);
+                    // --- Call new summary function ---
+                    generateShareEquivalentSummary(grandTotalShareEquivalent, lastStockPrice, lastStockDate);
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // errorDiv might contain stock fetch note, leave it.
+                    // errorDiv might contain stock fetch note.
                     showOutputContainers(true);
                 } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
         }
 
-        // --- Chart Generation (Handles Stock Data, Scatter, Legend Fix) ---
-        function generateChart(currencyDataMap, stockData) {
-             if (!ctx) return showError("Cannot generate chart, canvas context is invalid.");
-            const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length);
-            currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); });
-             const hasStockData = stockData && stockData.length > 0;
-             if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); }
-             else { console.log("No stock data to plot or fetch failed."); }
-            if (currentChart) currentChart.destroy(); currentChart = null; if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
-            try {
-                 const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } };
-                 if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; }
-                currentChart = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, } });
-            } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } }
-        }
+        // --- Chart Generation ---
+        function generateChart(currencyDataMap, stockData) { /* ... (Keep previous stock-handling version) ... */ if (!ctx) return showError("Cannot generate chart, canvas context is invalid."); const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length); currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); }); const hasStockData = stockData && stockData.length > 0; if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); } else { console.log("No stock data to plot or fetch failed."); } if (currentChart) currentChart.destroy(); currentChart = null; if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; } try { const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } }; if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; } currentChart = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, } }); } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } } }
 
-        // --- Yearly Spend Generation (Adding Share Equivalent Column) ---
-        function generateYearlySpend(yearlyData) {
-            if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); }
-            yearlySpendTableBody.innerHTML = '';
-            const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a);
-            if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; }
-            let hasContent = false; let previousYear = null;
-            sortedYears.forEach(year => {
-                const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort();
-                sortedCurrencies.forEach((currencyCode) => {
-                    hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow();
-                    if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; }
-                    row.insertCell().textContent = year; // Col 1
-                    row.insertCell().textContent = currencyCode; // Col 2
-                    const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; } // Col 3
-                    const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; } } else { amountCell.textContent = 'N/A'; } // Col 4
-                    const shareCell = row.insertCell(); if (currencyCode === 'USD' && currencyInfo.usdShareEquivalent && currencyInfo.usdShareEquivalent > 0) { shareCell.textContent = currencyInfo.usdShareEquivalent.toFixed(4); shareCell.style.textAlign = 'right'; } else { shareCell.textContent = ''; } // Col 5
-                    const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { /* ignore error */ } } else { orderCell.textContent = 'N/A'; } // Col 6
-                });
-            });
-            if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; }
-        }
+        // --- Yearly Spend Generation ---
+        function generateYearlySpend(yearlyData) { /* ... (Keep previous version with 6 columns) ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; } } else { amountCell.textContent = 'N/A'; } const shareCell = row.insertCell(); if (currencyCode === 'USD' && currencyInfo.usdShareEquivalent && currencyInfo.usdShareEquivalent > 0) { shareCell.textContent = currencyInfo.usdShareEquivalent.toFixed(4); shareCell.style.textAlign = 'right'; } else { shareCell.textContent = ''; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { /* handle error */ } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
 
         // --- Summary Generation ---
-        function generateSummary(yearlyData) { if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
+        function generateSummary(yearlyData) { /* ... (Keep previous version) ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
+
+        // --- New Function: Generate Share Equivalent Summary ---
+        function generateShareEquivalentSummary(totalShares, lastPrice, lastDate) {
+             if (!shareEquivalentSummary || !totalSharesEquivalent || !totalSharesValue || !lastStockDateSpan || !millionaireStatus || !millionaireAnswerSpan) {
+                 console.error("Share equivalent summary elements not found.");
+                 return;
+             }
+             // Reset fields
+             const totalSharesSpan = totalSharesEquivalent.querySelector('.value');
+             const totalValueSpan = totalSharesValue.querySelector('.value');
+             totalSharesSpan.textContent = '--';
+             totalValueSpan.textContent = '--';
+             lastStockDateSpan.textContent = 'N/A';
+             millionaireAnswerSpan.textContent = '--';
+             millionaireAnswerSpan.className = 'answer';
+             millionaireStatus.classList.add('hidden');
+
+
+             if (totalShares > 0) {
+                 totalSharesSpan.textContent = totalShares.toFixed(4);
+                 if (lastPrice && lastDate) {
+                     const finalValue = totalShares * lastPrice;
+                     lastStockDateSpan.textContent = lastDate.toLocaleDateString('en-CA'); // Show date
+                     totalValueSpan.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finalValue);
+
+                     // Check millionaire status
+                     if (finalValue >= 1000000) {
+                         millionaireAnswerSpan.textContent = 'YES!';
+                         millionaireAnswerSpan.className = 'answer answer-yes';
+                     } else {
+                         millionaireAnswerSpan.textContent = 'No';
+                          millionaireAnswerSpan.className = 'answer answer-no';
+                     }
+                     millionaireStatus.classList.remove('hidden'); // Show the paragraph
+                 } else {
+                     totalValueSpan.textContent = 'N/A (Missing latest stock price)';
+                 }
+             } else {
+                 totalSharesSpan.textContent = '0.0000';
+                 totalValueSpan.textContent = '$0.00';
+                 millionaireAnswerSpan.textContent = 'No'; // Show 'No' if 0 shares
+                  millionaireAnswerSpan.className = 'answer answer-no';
+                  millionaireStatus.classList.remove('hidden'); // Show the 'No' status
+             }
+        }
 
         // --- Helper Functions ---
         function generateDistinctColors(count) { if (count <= 0) return []; const colors = []; const sat = 70; const light = 50; const step = count > 1 ? 360 / count : 0; for (let i = 0; i < count; i++) colors.push(`hsl(${Math.round(i * step) % 360}, ${sat}%, ${light}%)`); return colors; }
