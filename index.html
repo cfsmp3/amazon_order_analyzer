@@ -67,16 +67,16 @@
         <p>This tool analyzes your Amazon order history so you can see how much you spent each year. The processing is completely local, in your browser. Data is not uploaded anywhere.</p>
         <p>The source code is available on <a href="https://github.com/cfsmp3/amazon_order_analyzer" target="_blank" rel="noopener noreferrer">Github</a>.</p>
         <p>In order to download the data from Amazon visit Amazon's <a href="https://www.amazon.com/gp/privacycentral/dsar/preview.html" target="_blank" rel="noopener noreferrer">"Request your data" page</a>. Select "Your orders". Once the data is ready you will be able to download a .zip file with all the historical information. That's the file you need to submit here for processing.</p>
+        <!-- Updated Note -->
         <p>
             <strong>Stock Data Note:</strong> Amazon stock price data is loaded from a static file for which the last day with data is <span id="stockDataLastDate">(loading...)</span>.
-            Due to browser security restrictions (CORS), fetching this data **will likely fail** when you run this HTML file directly from your computer (<code>file:///</code>). It should work correctly when accessed via its web URL (<a href="https://amazonorderanalyzer.netlify.app" target="_blank">amazonorderanalyzer.netlify.app</a>).
         </p>
         <p>
              Only orders in USD are considered for the share equivalent calculations. Orders that don't have all required fields (like some Digital Orders) are also skipped during processing.
         </p>
         <p>
             <em>
-                This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate. Total time spent: Around 4 hours. Using Google's Gemini on AI Studio. Human lead: <a href="https://www.linkedin.com/in/carlossubs/" target="_blank" rel="noopener noreferrer">Carlos Fernandez</a> (<a href="https://github.com/cfsmp3" target="_blank" rel="noopener noreferrer">Github</a>).
+                 This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate. Total time spent: Around 4 hours. Using Google's Gemini on AI Studio. Human lead: <a href="https://www.linkedin.com/in/carlossubs/" target="_blank" rel="noopener noreferrer">Carlos Fernandez</a> (<a href="https://github.com/cfsmp3" target="_blank" rel="noopener noreferrer">Github</a>).
             </em>
         </p>
     </details>
@@ -169,18 +169,26 @@
         let activeTooltipCell = null;
         let hideTooltipTimeoutId = null;
 
+        // --- Global Variables for Pre-loaded Stock Data ---
+        let preloadedStockPoints = null;
+        let preloadedStockPriceMap = null;
+        let preloadedLastStockPrice = null;
+        let preloadedLastStockDate = null;
+        let preloadedLastStockDateStr = '(loading...)'; // Default for note
+
+
         // --- Event Listeners ---
         if (uploadButton && zipInput) { uploadButton.addEventListener('click', () => zipInput.click()); zipInput.addEventListener('change', handleFileChange); } else { showError("Initialization Error: Page elements missing."); }
         if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow); yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove); }
         if (yearlySpendContainer) { yearlySpendContainer.addEventListener('mouseout', handleTooltipHide); } else if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseout', handleTooltipHide); console.warn("Attaching mouseout listener to table body as fallback."); }
 
-        function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; if(stockDataLastDateSpan) stockDataLastDateSpan.textContent = '(loading...)'; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
+        function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
 
         // --- UI Helpers ---
         function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
         function showOutputContainers(hasData = true) { if (!hasData) return; [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (!el) return; let show = false; if (el === chartContainer && currentChart) show = true; else if (el === yearlySpendContainer && yearlySpendTableBody?.querySelector('tr')) show = true; else if (el === summaryContainer && summaryContentList?.querySelector('li')) show = true; else if (el === shareEquivalentSummary && totalSharesEquivalent?.querySelector('.value')?.textContent !== '--') show = true; if (show) el.classList.remove('hidden'); else el.classList.add('hidden'); }); }
         function clearContainerContent(container, keepSelector = null) { if (!container) return; const nodesToRemove = []; container.childNodes.forEach(node => { let keep = false; if (keepSelector && node.nodeType === Node.ELEMENT_NODE && node.matches(keepSelector)) keep = true; if (!keep) nodesToRemove.push(node); }); nodesToRemove.forEach(node => container.removeChild(node)); }
-        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; /* Don't hide other containers if only stock fails */ }
+        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError.includes(message) ? currentError : currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; /* Don't hide other containers just for stock error */ }
 
         // --- Tooltip Handlers (Revised Show/Hide with Timeout) ---
         function handleTooltipShow(event) { const targetCell = event.target.closest('.order-id-cell'); if (!targetCell || !tooltipDiv) return; if (hideTooltipTimeoutId) { clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; } if (targetCell === activeTooltipCell && !tooltipDiv.classList.contains('hidden')) { return; } activeTooltipCell = targetCell; const detailsJson = targetCell.dataset.orderDetails; if (!detailsJson) { activeTooltipCell = null; return; } try { const orderData = JSON.parse(detailsJson); let tooltipContent = ''; for (const [key, value] of Object.entries(orderData)) { if (value != null && String(value).trim() !== '' && key !== 'orderDetailsJson') tooltipContent += `<strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}<br>`; } tooltipDiv.innerHTML = tooltipContent || 'No details available.'; tooltipDiv.classList.remove('hidden'); handleTooltipMove(event); } catch (e) { console.error("Failed to parse order details JSON:", e); tooltipDiv.textContent = 'Error loading details.'; tooltipDiv.classList.remove('hidden'); activeTooltipCell = null; } }
@@ -188,7 +196,7 @@
         function handleTooltipMove(event) { if (!tooltipDiv || tooltipDiv.classList.contains('hidden') || !activeTooltipCell) return; const offsetX = 15; const offsetY = 10; let x = event.clientX + offsetX; let y = event.clientY + offsetY; const tooltipRect = tooltipDiv.getBoundingClientRect(); const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight; if (x + tooltipRect.width > viewportWidth) x = event.clientX - tooltipRect.width - offsetX; if (y + tooltipRect.height > viewportHeight) y = event.clientY - tooltipRect.height - offsetY; if (y < 0) y = 0; if (x < 0) x = 0; tooltipDiv.style.left = `${x}px`; tooltipDiv.style.top = `${y}px`; }
         function escapeHtml(unsafe) { if (unsafe == null) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-        // --- Stock Data Fetch from CSV (Using Absolute URL) ---
+        // --- Stock Data Fetch from CSV (Returns object) ---
         async function fetchStockDataFromCSV(url = 'https://amazonorderanalyzer.netlify.app/amzn_stock_data.csv') {
             console.log(`Fetching stock data from CSV: ${url}`);
             try {
@@ -208,11 +216,11 @@
                                 if (!dateHeader || !closeHeader) throw new Error(`Stock CSV missing required headers ('Date', 'Adjusted_close'). Found: ${headers.join(', ')}`);
                                 let lastDateObj = null;
                                 const stockPoints = results.data.map(row => { const dateStr = row[dateHeader]; const closeStr = row[closeHeader]; if (dateStr && closeStr) { const date = new Date(`${dateStr}T00:00:00`); const close = parseFloat(closeStr); if (!isNaN(date.getTime()) && !isNaN(close) && isFinite(close)) { if (!lastDateObj || date > lastDateObj) { lastDateObj = date; } return { x: date, y: close }; } } return null; }).filter(point => point !== null);
-                                stockPoints.sort((a, b) => a.x - b.x); // Sort to be sure
+                                stockPoints.sort((a, b) => a.x - b.x);
                                 const finalLastDateObj = stockPoints.length > 0 ? stockPoints[stockPoints.length - 1].x : null;
                                 const lastDateString = finalLastDateObj ? finalLastDateObj.toLocaleDateString('en-CA') : 'N/A';
                                 console.log(`Successfully processed ${stockPoints.length} stock data points from CSV. Last date: ${lastDateString}`);
-                                resolve({ points: stockPoints, lastDateString: lastDateString }); // Resolve with object
+                                resolve({ points: stockPoints, lastDateString: lastDateString });
                             } catch (processingError) { reject(processingError); }
                         }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); }
                     });
@@ -220,16 +228,47 @@
             } catch (error) {
                  console.error("Error fetching/processing stock CSV:", error);
                  let errorMsg = `Note: Could not load stock data CSV. `;
-                 if (window.location.protocol === 'file:') { errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature will only work when the tool is accessed via its web URL. (${error.message})`; }
+                 if (window.location.protocol === 'file:') { errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature may only work when the tool is accessed via its web URL. (${error.message})`; }
                  else { errorMsg += `Please check the file exists at the specified URL and network is available. (${error.message})`; }
-                 if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError.includes(errorMsg) ? currentError : currentError + "\n" + errorMsg) : errorMsg; errorDiv.classList.remove('hidden'); } // Avoid duplicate messages
+                 // Show error non-blockingly
+                 showError(errorMsg, error); // showError will now append/show
                  return { points: null, lastDateString: 'Error Loading' }; // Indicate failure
             }
         }
 
+        // --- New Function: Initialize Stock Data on Load ---
+        async function initializeStockData() {
+            const stockFetchResult = await fetchStockDataFromCSV();
+            if (stockFetchResult && stockFetchResult.points) {
+                preloadedStockPoints = stockFetchResult.points;
+                preloadedLastStockDateStr = stockFetchResult.lastDateString;
+
+                preloadedStockPriceMap = new Map();
+                preloadedStockPoints.forEach(point => {
+                    try {
+                        const dateKey = point.x.toLocaleDateString('en-CA');
+                        preloadedStockPriceMap.set(dateKey, point.y);
+                        if (!preloadedLastStockDate || point.x > preloadedLastStockDate) {
+                            preloadedLastStockDate = point.x;
+                            preloadedLastStockPrice = point.y;
+                        }
+                    } catch (e) { console.warn("Error processing stock point during init:", point.x, e); }
+                });
+                console.log(`Pre-loaded stock data. Map size: ${preloadedStockPriceMap?.size || 0}. Last date: ${preloadedLastStockDateStr}`);
+            } else {
+                preloadedLastStockDateStr = 'Error or N/A'; // Update status if fetch failed
+                console.error("Failed to pre-load stock data.");
+            }
+            // Update the instruction panel placeholder
+            if (stockDataLastDateSpan) {
+                stockDataLastDateSpan.textContent = preloadedLastStockDateStr;
+            }
+        }
+
+
         // --- Core Processing Logic ---
         async function processZipFile(file) {
-             // Library Checks...
+            // Library Checks...
              if (typeof JSZip === 'undefined') return showError('Error: JSZip library not loaded.'); if (typeof Papa === 'undefined') return showError('Error: PapaParse library not loaded.'); if (typeof Chart === 'undefined') return showError('Error: Chart.js library not loaded.'); if (!Chart._adapters?._date?.prototype?._id) console.warn('Chart.js date adapter might not be fully initialized.');
 
             try {
@@ -238,72 +277,47 @@
                 const fileProcessingPromises = [];
                 const allDataPoints = [];
                 const yearlyData = {};
-                let grandTotalShareEquivalent = 0;
-                let lastStockPrice = null;
-                let lastStockDate = null;
-                let lastStockDateStrForNote = '(loading...)'; // Default for note
+                let grandTotalShareEquivalent = 0; // Initialize
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
                 zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop ... */
-                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) { const promise = zipEntry.async('string').then(csvString => { return new Promise((resolve, reject) => { if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`)); Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: false, complete: (results) => { try { if (!results.meta?.fields) { return resolve(); } if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors); const headers = results.meta.fields.map(h => h ? h.trim() : ''); const dateHeader = findHeader(headers, ["Order Date", "Order date"]); const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]); const currencyHeader = findHeader(headers, ["Currency"]); const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]); if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } let skipped = 0; let filePoints = 0; results.data.forEach((row, index) => { if (!row || typeof row !== 'object') { skipped++; return; } const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase(); if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) { try { const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr); if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) { filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name }); /* Min/Max date tracking removed, done during point processing */ const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null, usdShareEquivalent: 0 }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; } } else { skipped++; } } catch (parseErr) { skipped++; } } else { skipped++; } }); if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`); resolve(); } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); } }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`)) }); }); }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); }); fileProcessingPromises.push(promise); } });
+                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) { const promise = zipEntry.async('string').then(csvString => { return new Promise((resolve, reject) => { if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`)); Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: false, complete: (results) => { try { if (!results.meta?.fields) { return resolve(); } if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors); const headers = results.meta.fields.map(h => h ? h.trim() : ''); const dateHeader = findHeader(headers, ["Order Date", "Order date"]); const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]); const currencyHeader = findHeader(headers, ["Currency"]); const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]); if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } let skipped = 0; let filePoints = 0; results.data.forEach((row, index) => { if (!row || typeof row !== 'object') { skipped++; return; } const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase(); if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) { try { const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr); if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) { filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name }); const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null, usdShareEquivalent: 0 }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; } } else { skipped++; } } catch (parseErr) { skipped++; } } else { skipped++; } }); if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`); resolve(); } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); } }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`)) }); }); }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); }); fileProcessingPromises.push(promise); } });
 
                 await Promise.allSettled(fileProcessingPromises);
 
-                statusDiv.textContent = 'Fetching stock data & generating reports...';
+                statusDiv.textContent = 'Calculating & generating reports...';
                 console.log(`Finished CSV processing. Found ${allDataPoints.length} total valid order data points.`);
 
-                let stockDataPoints = null;
-                let stockPriceMap = null;
-
-                if (allDataPoints.length > 0) {
-                    const stockFetchResult = await fetchStockDataFromCSV();
-                    stockDataPoints = stockFetchResult.points;
-                    lastStockDateStrForNote = stockFetchResult.lastDateString; // Update note date
-
-                    if (stockDataLastDateSpan) stockDataLastDateSpan.textContent = lastStockDateStrForNote; // Update UI
-
-                    if (stockDataPoints) {
-                        stockPriceMap = new Map();
-                        stockDataPoints.forEach(point => { // Build map AND find last price/date object
-                            try { const dateKey = point.x.toLocaleDateString('en-CA'); stockPriceMap.set(dateKey, point.y); if (!lastStockDate || point.x > lastStockDate) { lastStockDate = point.x; lastStockPrice = point.y; } }
-                            catch (e) { console.warn("Error creating date key for stock map:", point.x, e); }
-                        });
-                        console.log(`Created stock price map with ${stockPriceMap.size} entries.`);
-                        if (lastStockPrice) console.log(`Last stock price found: ${lastStockPrice} on ${lastStockDate?.toLocaleDateString('en-CA')}`);
-                    }
-
-                    // Calculate Share Equivalents and GRAND TOTAL
-                    if (stockPriceMap && stockPriceMap.size > 0) {
-                        console.log("Calculating USD share equivalents...");
-                        grandTotalShareEquivalent = 0;
-                        allDataPoints.forEach(point => {
-                            if (point.currency === 'USD') {
-                                try { const orderDateKey = point.x.toLocaleDateString('en-CA'); const stockPriceForDay = stockPriceMap.get(orderDateKey); if (stockPriceForDay && stockPriceForDay > 0) { const shareEquivalent = point.y / stockPriceForDay; const year = point.x.getFullYear(); if (yearlyData[year]?.[point.currency]) { yearlyData[year][point.currency].usdShareEquivalent = (yearlyData[year][point.currency].usdShareEquivalent || 0) + shareEquivalent; } grandTotalShareEquivalent += shareEquivalent; } }
-                                catch (e) { console.error("Error during share equivalent calculation:", e, point); }
-                            }
-                        });
-                         console.log(`Finished calculating share equivalents. Grand Total: ${grandTotalShareEquivalent.toFixed(4)} shares.`);
-                    } else { console.warn("Stock price map empty/unavailable, cannot calculate share equivalents."); }
-
-                } else {
-                    console.log("No valid order data points found, skipping stock data fetch and calculations.");
-                    if (stockDataLastDateSpan) stockDataLastDateSpan.textContent = 'N/A (No orders processed)'; // Update if no orders
+                // --- Use Pre-loaded Stock Data for Calculations ---
+                if (preloadedStockPriceMap && preloadedStockPriceMap.size > 0 && allDataPoints.length > 0) {
+                    console.log("Calculating USD share equivalents using pre-loaded stock data...");
+                    grandTotalShareEquivalent = 0;
+                    allDataPoints.forEach(point => {
+                        if (point.currency === 'USD') {
+                            try { const orderDateKey = point.x.toLocaleDateString('en-CA'); const stockPriceForDay = preloadedStockPriceMap.get(orderDateKey); if (stockPriceForDay && stockPriceForDay > 0) { const shareEquivalent = point.y / stockPriceForDay; const year = point.x.getFullYear(); if (yearlyData[year]?.[point.currency]) { yearlyData[year][point.currency].usdShareEquivalent = (yearlyData[year][point.currency].usdShareEquivalent || 0) + shareEquivalent; } grandTotalShareEquivalent += shareEquivalent; } }
+                            catch (e) { console.error("Error during share equivalent calculation:", e, point); }
+                        }
+                    });
+                     console.log(`Finished calculating share equivalents. Grand Total: ${grandTotalShareEquivalent.toFixed(4)} shares.`);
+                } else if (allDataPoints.length > 0){
+                    console.warn("Pre-loaded stock price map empty/unavailable, cannot calculate share equivalents.");
+                     if (errorDiv && !errorDiv.textContent.includes('stock data')) { showError("Note: Stock data not loaded, cannot calculate share equivalents."); }
                 }
+                // --- End Share Equivalent Calculation ---
 
                 if (allDataPoints.length > 0) {
                     const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
                     const currencyList = Object.keys(currencyDataMap).sort(); console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
 
-                    generateChart(currencyDataMap, stockDataPoints);
+                    generateChart(currencyDataMap, preloadedStockPoints); // Use preloaded points
                     generateYearlySpend(yearlyData);
                     generateSummary(yearlyData);
-                    generateShareEquivalentSummary(grandTotalShareEquivalent, lastStockPrice, lastStockDate); // Pass calculated values
+                    generateShareEquivalentSummary(grandTotalShareEquivalent, preloadedLastStockPrice, preloadedLastStockDate); // Use preloaded price/date
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // Keep potential stock error message visible in errorDiv
                     showOutputContainers(true);
-                } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
+                } else { let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
         }
 
@@ -316,11 +330,11 @@
         // --- Summary Generation ---
         function generateSummary(yearlyData) { /* ... (Keep previous version) ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
 
-        // --- New Function: Generate Share Equivalent Summary ---
+        // --- Generate Share Equivalent Summary ---
         function generateShareEquivalentSummary(totalShares, lastPrice, lastDate) {
              if (!shareEquivalentSummary || !totalSharesEquivalent || !totalSharesValue || !lastStockDateSpan || !millionaireStatus || !millionaireAnswerSpan) { console.error("Share equivalent summary elements not found."); return; }
              const totalSharesSpan = totalSharesEquivalent.querySelector('.value'); const totalValueSpan = totalSharesValue.querySelector('.value');
-             totalSharesSpan.textContent = '--'; totalValueSpan.textContent = '--'; lastStockDateSpan.textContent = 'N/A'; millionaireAnswerSpan.textContent = '--'; millionaireAnswerSpan.className = 'answer'; millionaireStatus.classList.add('hidden'); // Hide status by default
+             totalSharesSpan.textContent = '--'; totalValueSpan.textContent = '--'; lastStockDateSpan.textContent = 'N/A'; millionaireAnswerSpan.textContent = '--'; millionaireAnswerSpan.className = 'answer'; millionaireStatus.classList.add('hidden');
 
              if (totalShares > 0) {
                  totalSharesSpan.textContent = totalShares.toFixed(4);
@@ -330,7 +344,7 @@
                      totalValueSpan.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finalValue);
                      if (finalValue >= 1000000) { millionaireAnswerSpan.textContent = 'YES!'; millionaireAnswerSpan.className = 'answer answer-yes'; }
                      else { millionaireAnswerSpan.textContent = 'No'; millionaireAnswerSpan.className = 'answer answer-no'; }
-                     millionaireStatus.classList.remove('hidden'); // Show status paragraph
+                     millionaireStatus.classList.remove('hidden'); // Show the paragraph
                  } else { totalValueSpan.textContent = 'N/A (Missing latest stock price)'; }
              } else {
                  totalSharesSpan.textContent = '0.0000'; totalValueSpan.textContent = '$0.00';
@@ -343,9 +357,15 @@
         function generateDistinctColors(count) { if (count <= 0) return []; const colors = []; const sat = 70; const light = 50; const step = count > 1 ? 360 / count : 0; for (let i = 0; i < count; i++) colors.push(`hsl(${Math.round(i * step) % 360}, ${sat}%, ${light}%)`); return colors; }
         function findHeader(actualHeaders, potentialNames) { const potentialLower = potentialNames.map(n => n.toLowerCase()); for (const header of actualHeaders) { const trimmedHeader = header ? header.trim() : ''; if (trimmedHeader && potentialLower.includes(trimmedHeader.toLowerCase())) return trimmedHeader; } return null; }
 
-        // --- Tooltip/Init functions from previous step ---
-        // ... handleTooltipShow, handleTooltipHide, handleTooltipMove, escapeHtml ...
-        // ... DOMContentLoaded ...
+        // --- Initial Setup ---
+        document.addEventListener('DOMContentLoaded', () => {
+             if (canvas && !ctx) ctx = canvas.getContext('2d');
+             if (!ctx && canvas) console.error("Canvas context failed");
+             else if (!canvas) console.error("Canvas not found");
+
+             // *** Initialize Stock Data on Load ***
+             initializeStockData();
+        });
 
     </script>
 
