@@ -6,7 +6,7 @@
     <title>Amazon Order History Analyzer</title>
 
     <style>
-        /* CSS remains the same */
+        /* CSS Updated */
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
         h1, h2 { text-align: center; color: #333; }
         button { display: block; margin: 20px auto; padding: 12px 25px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; transition: background-color 0.3s ease; }
@@ -21,9 +21,10 @@
         #yearlySpendTable th { background-color: #e0efff; font-weight: bold; position: sticky; top: 0; z-index: 1;}
         #yearlySpendTable td:nth-child(1), #yearlySpendTable th:nth-child(1) { text-align: center; width: 10%; } /* Year */
         #yearlySpendTable td:nth-child(2), #yearlySpendTable th:nth-child(2) { text-align: center; width: 10%; } /* Currency */
-        #yearlySpendTable td:nth-child(3), #yearlySpendTable th:nth-child(3) { text-align: right; width: 20%; } /* Total Spend */
-        #yearlySpendTable td:nth-child(4), #yearlySpendTable th:nth-child(4) { text-align: right; width: 20%; } /* Most Exp. Amount */
-        #yearlySpendTable td:nth-child(5), #yearlySpendTable th:nth-child(5) { width: 40%; } /* Order ID */
+        #yearlySpendTable td:nth-child(3), #yearlySpendTable th:nth-child(3) { text-align: right; width: 18%; } /* Total Spend */
+        #yearlySpendTable td:nth-child(4), #yearlySpendTable th:nth-child(4) { text-align: right; width: 18%; } /* Most Exp. Amount */
+        #yearlySpendTable td:nth-child(5), #yearlySpendTable th:nth-child(5) { text-align: right; width: 18%; } /* Share Equivalent */
+        #yearlySpendTable td:nth-child(6), #yearlySpendTable th:nth-child(6) { width: 26%; } /* Order ID */
         .order-id-cell { cursor: help; color: #0056b3; text-decoration: underline dotted; }
         #yearlySpendTable tr.year-separator td { border-top: 2px solid #999; }
         #yearlySpendTable tr.year-separator:first-child td { border-top: 1px solid #ddd; }
@@ -54,7 +55,6 @@
         <p>This tool analyzes your Amazon order history so you can see how much you spent each year. The processing is completely local, in your browser. Data is not uploaded anywhere.</p>
         <p>The source code is available on <a href="https://github.com/cfsmp3/amazon_order_analyzer" target="_blank" rel="noopener noreferrer">Github</a>.</p>
         <p>In order to download the data from Amazon visit Amazon's <a href="https://www.amazon.com/gp/privacycentral/dsar/preview.html" target="_blank" rel="noopener noreferrer">"Request your data" page</a>. Select "Your orders". Once the data is ready you will be able to download a .zip file with all the historical information. That's the file you need to submit here for processing.</p>
-        <!-- Updated Note -->
         <p><strong>Stock Data Note:</strong> Amazon stock price data is loaded from a static file hosted online. Due to browser security restrictions (CORS), fetching this data **will likely fail** when you run this HTML file directly from your computer (<code>file:///</code>). It should work correctly when accessed via its web URL (<a href="https://amazonorderanalyzer.netlify.app" target="_blank">amazonorderanalyzer.netlify.app</a>).</p>
         <p><em>This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate.</em></p>
     </details>
@@ -80,6 +80,7 @@
                         <th>Currency</th>
                         <th>Total Spend</th>
                         <th>Most Exp. Order Amount</th>
+                        <th>Share Equivalent (USD)</th> <!-- New Header -->
                         <th>Most Exp. Order ID</th>
                     </tr>
                 </thead>
@@ -131,7 +132,7 @@
         function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
         function showOutputContainers(hasData = true) { if (!hasData) return; [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (!el) return; let show = false; if (el === chartContainer && currentChart) show = true; else if (el === yearlySpendContainer && yearlySpendTableBody?.querySelector('tr')) show = true; else if (el === summaryContainer && summaryContentList?.querySelector('li')) show = true; if (show) el.classList.remove('hidden'); else el.classList.add('hidden'); }); }
         function clearContainerContent(container, keepSelector = null) { if (!container) return; const nodesToRemove = []; container.childNodes.forEach(node => { let keep = false; if (keepSelector && node.nodeType === Node.ELEMENT_NODE && node.matches(keepSelector)) keep = true; if (!keep) nodesToRemove.push(node); }); nodesToRemove.forEach(node => container.removeChild(node)); }
-        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) errorDiv.textContent = message; if (statusDiv) statusDiv.textContent = 'Processing failed.'; hideOutputContainers(); }
+        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; hideOutputContainers(); } // Modified to show errors better
 
         // --- Tooltip Handlers (Revised Show/Hide with Timeout) ---
         function handleTooltipShow(event) { const targetCell = event.target.closest('.order-id-cell'); if (!targetCell || !tooltipDiv) return; if (hideTooltipTimeoutId) { clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; } if (targetCell === activeTooltipCell && !tooltipDiv.classList.contains('hidden')) { return; } activeTooltipCell = targetCell; const detailsJson = targetCell.dataset.orderDetails; if (!detailsJson) { activeTooltipCell = null; return; } try { const orderData = JSON.parse(detailsJson); let tooltipContent = ''; for (const [key, value] of Object.entries(orderData)) { if (value != null && String(value).trim() !== '' && key !== 'orderDetailsJson') tooltipContent += `<strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}<br>`; } tooltipDiv.innerHTML = tooltipContent || 'No details available.'; tooltipDiv.classList.remove('hidden'); handleTooltipMove(event); } catch (e) { console.error("Failed to parse order details JSON:", e); tooltipDiv.textContent = 'Error loading details.'; tooltipDiv.classList.remove('hidden'); activeTooltipCell = null; } }
@@ -139,14 +140,13 @@
         function handleTooltipMove(event) { if (!tooltipDiv || tooltipDiv.classList.contains('hidden') || !activeTooltipCell) return; const offsetX = 15; const offsetY = 10; let x = event.clientX + offsetX; let y = event.clientY + offsetY; const tooltipRect = tooltipDiv.getBoundingClientRect(); const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight; if (x + tooltipRect.width > viewportWidth) x = event.clientX - tooltipRect.width - offsetX; if (y + tooltipRect.height > viewportHeight) y = event.clientY - tooltipRect.height - offsetY; if (y < 0) y = 0; if (x < 0) x = 0; tooltipDiv.style.left = `${x}px`; tooltipDiv.style.top = `${y}px`; }
         function escapeHtml(unsafe) { if (unsafe == null) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-        // --- Stock Data Fetch from CSV (Using Absolute URL - CORS WILL LIKELY BLOCK WHEN RUN LOCALLY) ---
-        async function fetchStockDataFromCSV(url = 'https://amazonorderanalyzer.netlify.app/amzn_stock_data.csv') { // Use absolute URL
+        // --- Stock Data Fetch from CSV (Using Absolute URL) ---
+        async function fetchStockDataFromCSV(url = 'https://amazonorderanalyzer.netlify.app/amzn_stock_data.csv') {
             console.log(`Fetching stock data from CSV: ${url}`);
             try {
-                const response = await fetch(url); // No mode specified, implies 'cors' by default
+                const response = await fetch(url);
                 if (!response.ok) { throw new Error(`Fetch failed: ${response.status} ${response.statusText}`); }
                 const csvString = await response.text();
-
                 return new Promise((resolve, reject) => {
                     Papa.parse(csvString, {
                         header: true, skipEmptyLines: true, dynamicTyping: false,
@@ -165,21 +165,15 @@
                         }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); }
                     });
                 });
-
             } catch (error) {
                  console.error("Error fetching/processing stock CSV:", error);
                  let errorMsg = `Note: Could not load stock data CSV. `;
-                 if (window.location.protocol === 'file:') {
-                     errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature will only work when the tool is accessed via its web URL. (${error.message})`;
-                 } else {
-                      // If already on web URL, it might be network or file not found
-                     errorMsg += `Please check the file exists at the specified URL and network is available. (${error.message})`;
-                 }
+                 if (window.location.protocol === 'file:') { errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature will only work when the tool is accessed via its web URL. (${error.message})`; }
+                 else { errorMsg += `Please check the file exists at the specified URL and network is available. (${error.message})`; }
                  if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + errorMsg) : errorMsg; errorDiv.classList.remove('hidden'); }
                  return null; // Indicate failure
             }
         }
-
 
         // --- Core Processing Logic ---
         async function processZipFile(file) {
@@ -191,33 +185,112 @@
                 const zip = await JSZip.loadAsync(file);
                 const fileProcessingPromises = [];
                 const allDataPoints = [];
-                const yearlyData = {};
+                const yearlyData = {}; // Structure: { year: { currencyCode: { total:..., maxOrderInfo:..., usdShareEquivalent?:... } } }
+                let minOrderDate = null;
+                let maxOrderDate = null;
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
-                zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop (same as previous) ... */
-                     if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) { const promise = zipEntry.async('string').then(csvString => { return new Promise((resolve, reject) => { if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`)); Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: false, complete: (results) => { try { if (!results.meta?.fields) { return resolve(); } if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors); const headers = results.meta.fields.map(h => h ? h.trim() : ''); const dateHeader = findHeader(headers, ["Order Date", "Order date"]); const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]); const currencyHeader = findHeader(headers, ["Currency"]); const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]); if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } let skipped = 0; let loggedSkip = false; let filePoints = 0; results.data.forEach((row, index) => { if (!row || typeof row !== 'object') { skipped++; return; } const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase(); if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) { try { const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr); if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) { filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name }); const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; } } else { if(!loggedSkip) loggedSkip = true; skipped++; } } catch (parseErr) { if(!loggedSkip) loggedSkip = true; skipped++; } } else { if(!loggedSkip) loggedSkip = true; skipped++; } }); if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`); resolve(); } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); } }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`)) }); }); }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); }); fileProcessingPromises.push(promise); } });
+                zip.forEach((relativePath, zipEntry) => {
+                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) {
+                        const promise = zipEntry.async('string').then(csvString => {
+                             return new Promise((resolve, reject) => {
+                                if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`));
+                                Papa.parse(csvString, {
+                                    header: true, skipEmptyLines: true, dynamicTyping: false,
+                                    complete: (results) => {
+                                        try {
+                                            if (!results.meta?.fields) { return resolve(); }
+                                            if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors);
+                                            const headers = results.meta.fields.map(h => h ? h.trim() : '');
+                                            const dateHeader = findHeader(headers, ["Order Date", "Order date"]);
+                                            const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]);
+                                            const currencyHeader = findHeader(headers, ["Currency"]);
+                                            const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]);
+                                            if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); }
+                                            let skipped = 0; let filePoints = 0;
+
+                                            results.data.forEach((row, index) => {
+                                                if (!row || typeof row !== 'object') { skipped++; return; }
+                                                const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase();
+                                                if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) {
+                                                    try {
+                                                        const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr);
+                                                        if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) {
+                                                            filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name });
+                                                            if (!minOrderDate || date < minOrderDate) minOrderDate = date; if (!maxOrderDate || date > maxOrderDate) maxOrderDate = date;
+                                                            const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null, usdShareEquivalent: 0 }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; }
+                                                        } else { skipped++; }
+                                                    } catch (parseErr) { skipped++; }
+                                                } else { skipped++; }
+                                            });
+                                            if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`);
+                                            resolve();
+                                        } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); }
+                                    }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`))
+                                });
+                             });
+                        }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); });
+                        fileProcessingPromises.push(promise);
+                    }
+                }); // end zip.forEach
 
                 await Promise.allSettled(fileProcessingPromises);
 
                 statusDiv.textContent = 'Fetching stock data & generating reports...';
                 console.log(`Finished CSV processing. Found ${allDataPoints.length} total valid order data points.`);
 
-                let stockData = null;
+                let stockDataPoints = null; // Raw points from fetch
+                let stockPriceMap = null; // Map for lookup
+
                 if (allDataPoints.length > 0) {
-                    stockData = await fetchStockDataFromCSV(); // Use new function
-                } else { console.log("No valid order data points found, skipping stock data fetch."); }
+                    stockDataPoints = await fetchStockDataFromCSV(); // Fetch CSV data
+
+                    // Create Stock Price Lookup Map
+                    if (stockDataPoints) {
+                        stockPriceMap = new Map();
+                        stockDataPoints.forEach(point => {
+                            try {
+                                const dateKey = point.x.toLocaleDateString('en-CA'); // 'YYYY-MM-DD' format (local)
+                                stockPriceMap.set(dateKey, point.y);
+                            } catch (e) { console.warn("Error creating date key for stock map:", point.x, e); }
+                        });
+                        console.log(`Created stock price map with ${stockPriceMap.size} entries.`);
+                    }
+
+                    // Calculate Share Equivalents
+                    if (stockPriceMap && stockPriceMap.size > 0) {
+                        console.log("Calculating USD share equivalents...");
+                        allDataPoints.forEach(point => {
+                            if (point.currency === 'USD') {
+                                try {
+                                    const orderDateKey = point.x.toLocaleDateString('en-CA');
+                                    const stockPriceForDay = stockPriceMap.get(orderDateKey);
+                                    if (stockPriceForDay && stockPriceForDay > 0) {
+                                        const shareEquivalent = point.y / stockPriceForDay;
+                                        const year = point.x.getFullYear();
+                                        if (yearlyData[year] && yearlyData[year]['USD']) {
+                                            yearlyData[year]['USD'].usdShareEquivalent += shareEquivalent;
+                                        }
+                                    } // else { console.warn(`No stock price for ${orderDateKey}`); } // Optional: Warning if no stock price found
+                                } catch (e) { console.error("Error during share equivalent calculation:", e, point); }
+                            }
+                        });
+                        console.log("Finished calculating share equivalents.");
+                    } else { console.warn("Stock price map empty/unavailable, cannot calculate share equivalents."); }
+
+                } else { console.log("No valid order data points found, skipping stock data fetch and calculations."); }
 
                 if (allDataPoints.length > 0) {
                     const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
                     const currencyList = Object.keys(currencyDataMap).sort(); console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
 
-                    generateChart(currencyDataMap, stockData); // Pass maybe-null stockData
-                    generateYearlySpend(yearlyData);
+                    generateChart(currencyDataMap, stockDataPoints); // Pass raw stock points
+                    generateYearlySpend(yearlyData); // Contains share equivalents now
                     generateSummary(yearlyData);
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // errorDiv might contain stock fetch note, don't clear it
+                    // errorDiv might contain stock fetch note, leave it.
                     showOutputContainers(true);
                 } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
@@ -239,11 +312,37 @@
             } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } }
         }
 
-        // Yearly Spend / Summary / Helpers / Init: Keep previous versions
-        function generateYearlySpend(yearlyData) { /* ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode, index) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} total.`, e); } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for year ${year} max amount.`, e); } } else { amountCell.textContent = 'N/A'; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { console.error(`Failed to stringify order details for year ${year}:`, e); orderCell.dataset.orderDetails = '{"error": "Could not serialize details"}'; } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 5; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
-        function generateSummary(yearlyData) { /* ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
+        // --- Yearly Spend Generation (Adding Share Equivalent Column) ---
+        function generateYearlySpend(yearlyData) {
+            if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); }
+            yearlySpendTableBody.innerHTML = '';
+            const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a);
+            if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; }
+            let hasContent = false; let previousYear = null;
+            sortedYears.forEach(year => {
+                const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort();
+                sortedCurrencies.forEach((currencyCode) => {
+                    hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow();
+                    if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; }
+                    row.insertCell().textContent = year; // Col 1
+                    row.insertCell().textContent = currencyCode; // Col 2
+                    const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; } // Col 3
+                    const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; } } else { amountCell.textContent = 'N/A'; } // Col 4
+                    const shareCell = row.insertCell(); if (currencyCode === 'USD' && currencyInfo.usdShareEquivalent && currencyInfo.usdShareEquivalent > 0) { shareCell.textContent = currencyInfo.usdShareEquivalent.toFixed(4); shareCell.style.textAlign = 'right'; } else { shareCell.textContent = ''; } // Col 5
+                    const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { /* ignore error */ } } else { orderCell.textContent = 'N/A'; } // Col 6
+                });
+            });
+            if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; }
+        }
+
+        // --- Summary Generation ---
+        function generateSummary(yearlyData) { if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
+
+        // --- Helper Functions ---
         function generateDistinctColors(count) { if (count <= 0) return []; const colors = []; const sat = 70; const light = 50; const step = count > 1 ? 360 / count : 0; for (let i = 0; i < count; i++) colors.push(`hsl(${Math.round(i * step) % 360}, ${sat}%, ${light}%)`); return colors; }
         function findHeader(actualHeaders, potentialNames) { const potentialLower = potentialNames.map(n => n.toLowerCase()); for (const header of actualHeaders) { const trimmedHeader = header ? header.trim() : ''; if (trimmedHeader && potentialLower.includes(trimmedHeader.toLowerCase())) return trimmedHeader; } return null; }
+
+        // --- Initial Setup ---
         document.addEventListener('DOMContentLoaded', () => { if (canvas && !ctx) ctx = canvas.getContext('2d'); if (!ctx && canvas) console.error("Canvas context failed"); else if (!canvas) console.error("Canvas not found"); });
 
     </script>
