@@ -6,6 +6,7 @@
     <title>Amazon Order History Analyzer</title>
 
     <style>
+        /* CSS styles remain the same as the previous version with the yearly table */
         body { font-family: sans-serif; padding: 20px; background-color: #f4f4f4; }
         h1, h2 { text-align: center; color: #333; }
         button { display: block; margin: 20px auto; padding: 12px 25px; font-size: 16px; cursor: pointer; background-color: #007bff; color: white; border: none; border-radius: 5px; transition: background-color 0.3s ease; }
@@ -62,7 +63,8 @@
         <p>This tool analyzes your Amazon order history so you can see how much you spent each year. The processing is completely local, in your browser. Data is not uploaded anywhere.</p>
         <p>The source code is available on <a href="https://github.com/cfsmp3/amazon_order_analyzer" target="_blank" rel="noopener noreferrer">Github</a>.</p>
         <p>In order to download the data from Amazon visit Amazon's <a href="https://www.amazon.com/gp/privacycentral/dsar/preview.html" target="_blank" rel="noopener noreferrer">"Request your data" page</a>. Select "Your orders". Once the data is ready you will be able to download a .zip file with all the historical information. That's the file you need to submit here for processing.</p>
-        <p><strong>Stock Data Note:</strong> Amazon stock price data is fetched from a public, unofficial source (Yahoo Finance). This data might be unavailable, delayed, or inaccurate at times.</p>
+        <!-- Updated Note -->
+        <p><strong>Stock Data Note:</strong> An attempt is made to fetch Amazon stock price data from a public, unofficial source (Yahoo Finance). Due to browser security restrictions (CORS), **this fetch will likely fail** when run directly or from most web hosts. If it fails, the chart will display without stock data, and a note will appear in the error area below.</p>
         <p><em>This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate.</em></p>
     </details>
     <!-- End Instructions Panel -->
@@ -75,7 +77,7 @@
     <div id="error"></div>
 
     <div id="chartContainer" class="data-container hidden"> <canvas id="orderChart"></canvas> </div>
-    <!-- Legend container removed -->
+    <!-- Legend handled by Chart.js -->
 
     <div id="yearlySpendContainer" class="data-container hidden">
         <h2>Yearly Spend</h2>
@@ -128,43 +130,11 @@
         let hideTooltipTimeoutId = null;
 
         // --- Event Listeners ---
-        if (uploadButton && zipInput) {
-            uploadButton.addEventListener('click', () => zipInput.click());
-            zipInput.addEventListener('change', handleFileChange);
-        } else { showError("Initialization Error: Page elements missing."); }
-        if (yearlySpendTableBody) {
-             yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow);
-             yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove);
-        }
-        if (yearlySpendContainer) { // Attach mouseout to container for tooltip hide
-             yearlySpendContainer.addEventListener('mouseout', handleTooltipHide);
-        } else if (yearlySpendTableBody) {
-             yearlySpendTableBody.addEventListener('mouseout', handleTooltipHide);
-             console.warn("Attaching mouseout listener to table body as container not found.");
-        }
+        if (uploadButton && zipInput) { /* ... */ uploadButton.addEventListener('click', () => zipInput.click()); zipInput.addEventListener('change', handleFileChange); } else { showError("Initialization Error: Page elements missing."); }
+        if (yearlySpendTableBody) { /* ... */ yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow); yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove); }
+        if (yearlySpendContainer) { yearlySpendContainer.addEventListener('mouseout', handleTooltipHide); } else if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseout', handleTooltipHide); console.warn("Attaching mouseout listener to table body as fallback."); }
 
-        function handleFileChange(event) {
-             if (!ctx && canvas) ctx = canvas.getContext('2d');
-             if (!ctx) return showError("Error: Failed to get canvas context.");
-
-            const file = event.target.files[0];
-            if (file) {
-                statusDiv.textContent = 'Processing zip file...';
-                errorDiv.textContent = '';
-                hideOutputContainers();
-
-                if (currentChart) currentChart.destroy(); currentChart = null;
-                // No legend container to clear
-                if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = '';
-                if (summaryContentList) summaryContentList.innerHTML = '';
-                activeTooltipCell = null;
-                if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId);
-                hideTooltipTimeoutId = null;
-
-                processZipFile(file);
-            }
-            event.target.value = null;
-        }
+        function handleFileChange(event) { /* ... (Reset logic from previous version) ... */ if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
 
         // --- UI Helpers ---
         function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
@@ -178,29 +148,31 @@
         function handleTooltipMove(event) { if (!tooltipDiv || tooltipDiv.classList.contains('hidden') || !activeTooltipCell) return; const offsetX = 15; const offsetY = 10; let x = event.clientX + offsetX; let y = event.clientY + offsetY; const tooltipRect = tooltipDiv.getBoundingClientRect(); const viewportWidth = window.innerWidth; const viewportHeight = window.innerHeight; if (x + tooltipRect.width > viewportWidth) x = event.clientX - tooltipRect.width - offsetX; if (y + tooltipRect.height > viewportHeight) y = event.clientY - tooltipRect.height - offsetY; if (y < 0) y = 0; if (x < 0) x = 0; tooltipDiv.style.left = `${x}px`; tooltipDiv.style.top = `${y}px`; }
         function escapeHtml(unsafe) { if (unsafe == null) return ''; return String(unsafe).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;"); }
 
-        // --- Stock Data Fetch ---
+        // --- Stock Data Fetch (Will likely fail due to CORS) ---
         async function fetchStockData(ticker, startDate, endDate) {
-            if (!startDate || !endDate) { console.warn("Cannot fetch stock data: Invalid date range."); return null; }
+            if (!startDate || !endDate) { console.warn("Stock fetch skipped: Invalid date range."); return null; }
             const startTimestamp = Math.floor(startDate.getTime() / 1000);
             const endTimestamp = Math.floor(endDate.getTime() / 1000) + 86400;
-            // **WARNING: Unofficial Endpoint - May break **
+            // **WARNING: Unofficial Endpoint - CORS will likely block this**
             const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?period1=${startTimestamp}&period2=${endTimestamp}&interval=1d&events=history`;
-            console.log(`Fetching stock data from: ${url}`);
+            console.log(`Attempting to fetch stock data from: ${url}`);
             try {
-                const response = await fetch(url, { mode: 'cors' }); // Try CORS first
+                const response = await fetch(url, { mode: 'cors' }); // Standard CORS request
                 if (!response.ok) { throw new Error(`Fetch failed: ${response.status} ${response.statusText}`); }
                 const data = await response.json();
                 if (!data?.chart?.result?.[0]?.timestamp || !data.chart.result[0].indicators?.quote?.[0]?.close) { throw new Error("Unexpected stock API response structure."); }
                 const timestamps = data.chart.result[0].timestamp;
                 const closePrices = data.chart.result[0].indicators.quote[0].close;
                 const stockPoints = timestamps.map((ts, index) => { const price = closePrices[index]; if (ts != null && price != null) { return { x: new Date(ts * 1000), y: price }; } return null; }).filter(point => point !== null);
-                console.log(`Successfully processed ${stockPoints.length} stock data points.`);
+                console.log(`Successfully processed ${stockPoints.length} stock data points (though CORS likely blocked access).`); // Acknowledge potential block
                 return stockPoints;
             } catch (error) {
-                 console.error("Error fetching stock data:", error);
-                 // Display non-blocking error to user
+                 console.error("Error fetching/processing stock data:", error);
+                 let errorMsg = `Note: Could not fetch stock data for ${ticker}. This is likely due to browser security (CORS). Chart will display without it. (${error.message})`;
+                 // Append to existing errors if any
                  if (errorDiv) {
-                    errorDiv.textContent += `\nNote: Could not fetch stock data for ${ticker} (${error.message}). Chart will display without it.`;
+                    errorDiv.textContent = errorDiv.textContent ? (errorDiv.textContent + "\n" + errorMsg) : errorMsg;
+                    errorDiv.classList.remove('hidden'); // Ensure error div is visible
                  }
                  return null; // Indicate failure
             }
@@ -209,7 +181,7 @@
         // --- Core Processing Logic ---
         async function processZipFile(file) {
             // Library Checks...
-            if (typeof JSZip === 'undefined') return showError('Error: JSZip library not loaded.'); if (typeof Papa === 'undefined') return showError('Error: PapaParse library not loaded.'); if (typeof Chart === 'undefined') return showError('Error: Chart.js library not loaded.'); if (!Chart._adapters?._date?.prototype?._id) console.warn('Chart.js date adapter might not be fully initialized.');
+             if (typeof JSZip === 'undefined') return showError('Error: JSZip library not loaded.'); if (typeof Papa === 'undefined') return showError('Error: PapaParse library not loaded.'); if (typeof Chart === 'undefined') return showError('Error: Chart.js library not loaded.'); if (!Chart._adapters?._date?.prototype?._id) console.warn('Chart.js date adapter might not be fully initialized.');
 
             try {
                 statusDiv.textContent = 'Loading zip file...';
@@ -222,7 +194,7 @@
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
-                zip.forEach((relativePath, zipEntry) => {
+                zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop ... */
                     if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) {
                         const promise = zipEntry.async('string').then(csvString => {
                              return new Promise((resolve, reject) => {
@@ -231,9 +203,8 @@
                                     header: true, skipEmptyLines: true, dynamicTyping: false,
                                     complete: (results) => {
                                         try {
-                                            // console.log(`--- Processing File: ${zipEntry.name} ---`);
-                                            if (!results.meta?.fields) { return resolve(); }
-                                            // console.log('Headers:', results.meta.fields);
+                                            // Minimal logging now
+                                            if (!results.meta?.fields) { return resolve(); } // Skip if no headers
                                             if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors);
 
                                             const headers = results.meta.fields.map(h => h ? h.trim() : '');
@@ -244,41 +215,28 @@
 
                                             if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } // Skip if core headers missing
 
-                                            let skipped = 0; let loggedSkip = false; let filePoints = 0;
+                                            let skipped = 0; let filePoints = 0;
 
-                                            results.data.forEach((row, index) => {
+                                            results.data.forEach((row, index) => { /* ... Row processing ... */
                                                 if (!row || typeof row !== 'object') { skipped++; return; }
-                                                const dateStr = row[dateHeader];
-                                                const totalStr = row[totalHeader];
-                                                const currencyCode = row[currencyHeader]?.trim().toUpperCase();
-
+                                                const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase();
                                                 if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) {
                                                     try {
-                                                        const date = new Date(dateStr);
-                                                        let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, '');
-                                                        const total = parseFloat(cleanedTotalStr);
-
+                                                        const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr);
                                                         if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) {
-                                                            filePoints++;
-                                                            allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name });
-                                                            if (!minOrderDate || date < minOrderDate) minOrderDate = date;
-                                                            if (!maxOrderDate || date > maxOrderDate) maxOrderDate = date;
-                                                            const year = date.getFullYear();
-                                                            if (!yearlyData[year]) yearlyData[year] = {};
-                                                            if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null }; }
-                                                            yearlyData[year][currencyCode].total += total;
-                                                            if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; }
-                                                        } else { if(!loggedSkip) loggedSkip = true; skipped++; }
-                                                    } catch (parseErr) { if(!loggedSkip) loggedSkip = true; skipped++; }
-                                                } else { if(!loggedSkip) loggedSkip = true; skipped++; }
-                                            });
-                                            // console.log(`   Processed ${filePoints} points from ${zipEntry.name}. Skipped ${skipped}.`);
+                                                            filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name });
+                                                            if (!minOrderDate || date < minOrderDate) minOrderDate = date; if (!maxOrderDate || date > maxOrderDate) maxOrderDate = date;
+                                                            const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; }
+                                                        } else { skipped++; }
+                                                    } catch (parseErr) { skipped++; }
+                                                } else { skipped++; }
+                                            }); // End row processing
+                                            if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`);
                                             resolve();
                                         } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); }
-                                    },
-                                    error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`))
-                                });
-                             });
+                                    }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`))
+                                }); // End Papa.parse
+                             }); // End Promise
                         }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); });
                         fileProcessingPromises.push(promise);
                     } // End if CSV
@@ -286,113 +244,55 @@
 
                 await Promise.allSettled(fileProcessingPromises);
 
-                statusDiv.textContent = 'Fetching stock data & generating reports...';
+                statusDiv.textContent = 'Attempting stock fetch & generating reports...'; // Update status
                 console.log(`Finished CSV processing. Found ${allDataPoints.length} total valid order data points.`);
 
                 let stockData = null;
                 if (allDataPoints.length > 0 && minOrderDate && maxOrderDate) {
                      console.log(`Order date range: ${minOrderDate.toISOString()} to ${maxOrderDate.toISOString()}`);
-                     stockData = await fetchStockData('AMZN', minOrderDate, maxOrderDate);
+                     stockData = await fetchStockData('AMZN', minOrderDate, maxOrderDate); // Attempt fetch
                 } else { console.log("No valid order data points found or date range invalid, skipping stock data fetch."); }
 
                 if (allDataPoints.length > 0) {
-                    const currencyDataMap = {};
-                    allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); });
-                    Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
-                    const currencyList = Object.keys(currencyDataMap).sort();
-                    console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
+                    const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
+                    const currencyList = Object.keys(currencyDataMap).sort(); console.log(`Found order data for currencies: ${currencyList.join(', ')}`);
 
-                    generateChart(currencyDataMap, stockData); // Pass both
-                    // No legend function call needed
+                    generateChart(currencyDataMap, stockData); // Pass maybe-null stockData
+                    // No legend function
                     generateYearlySpend(yearlyData);
                     generateSummary(yearlyData);
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // Error div might have stock fetch note, don't clear unless fully successful? Or maybe clear is fine.
+                    // Don't clear errorDiv completely if stock fetch failed
                     // errorDiv.textContent = '';
                     showOutputContainers(true);
-                } else {
-                   let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.';
-                   if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.';
-                   showError(msg);
-                   showOutputContainers(false);
-                }
+                } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
         }
 
         // --- Chart Generation (Handles Stock Data, Scatter, Legend Fix) ---
-        function generateChart(currencyDataMap, stockData) { // Takes currency map and optional stock data array
+        function generateChart(currencyDataMap, stockData) {
             if (!ctx) return showError("Cannot generate chart, canvas context is invalid.");
+            const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length);
 
-            const datasets = [];
-            const currencies = Object.keys(currencyDataMap).sort();
-            const orderColors = generateDistinctColors(currencies.length);
+            // Order Datasets (Scatter)
+            currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); });
 
-            // --- Order Datasets (Scatter Points) ---
-            currencies.forEach((currencyCode, index) => {
-                const color = orderColors[index % orderColors.length];
-                datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' });
-            });
-
-             // --- Stock Data Dataset (Line) ---
+             // Stock Data Dataset (Line)
              const hasStockData = stockData && stockData.length > 0;
-             if (hasStockData) {
-                 datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' });
-             } else { console.log("No stock data to plot or fetch failed."); }
+             if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); }
+             else { console.log("No stock data to plot or fetch failed."); }
 
             if (currentChart) currentChart.destroy(); currentChart = null;
             if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; }
 
             try {
-                 // Define scales configuration, making yStock conditional
-                 const scalesConfig = {
-                     x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } },
-                     yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } }
-                 };
-                 // Add the stock axis only if data exists
-                 if (hasStockData) {
-                    scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, };
-                 }
+                 const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } };
+                 if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; }
 
                 currentChart = new Chart(ctx, {
                     type: 'line', data: { datasets },
-                    options: {
-                         responsive: true, maintainAspectRatio: false,
-                         interaction: { mode: 'index', intersect: false },
-                         scales: scalesConfig, // Use conditional scales
-                         plugins: {
-                             legend: {
-                                 display: true, position: 'top',
-                                 labels: {
-                                      usePointStyle: true,
-                                      pointStyle: function(context) {
-                                          // *** DEFENSIVE CHECK ***
-                                          const label = context.dataset?.label; // Safely access label
-                                          // Use line style only for stock, circle for others/default
-                                          return label === 'AMZN Stock Price' ? 'line' : 'circle';
-                                      }
-                                 },
-                                 // onClick is handled by Chart.js by default
-                             },
-                             tooltip: {
-                                 callbacks: {
-                                     label: function(context) {
-                                         const datasetLabel = context.dataset?.label || '';
-                                         const value = context.parsed?.y;
-                                         let displayLabel = datasetLabel;
-                                         if (value !== null && value !== undefined) {
-                                             if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; }
-                                             else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } }
-                                             else { displayLabel = value; }
-                                         } else { displayLabel = datasetLabel + ': N/A'; }
-                                         return displayLabel;
-                                     },
-                                     title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : ''
-                                 }
-                             }
-                         },
-                         animation: { duration: 300 },
-                    }
+                    options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, }
                 });
             } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } }
         }
