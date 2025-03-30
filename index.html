@@ -46,11 +46,7 @@
         .instructions-panel em { font-size: 13px; color: #666; }
 
         /* --- Share Equivalent Summary --- */
-        #shareEquivalentSummary {
-            background-color: #fff; /* White background */
-            border: 1px solid #ccc;
-            text-align: center;
-        }
+        #shareEquivalentSummary { background-color: #fff; border: 1px solid #ccc; text-align: center; }
         #shareEquivalentSummary h2 { margin-bottom: 15px; }
         #shareEquivalentSummary p { font-size: 16px; margin: 10px 0; color: #333; }
         #shareEquivalentSummary .value { font-weight: bold; color: #0056b3; }
@@ -71,8 +67,18 @@
         <p>This tool analyzes your Amazon order history so you can see how much you spent each year. The processing is completely local, in your browser. Data is not uploaded anywhere.</p>
         <p>The source code is available on <a href="https://github.com/cfsmp3/amazon_order_analyzer" target="_blank" rel="noopener noreferrer">Github</a>.</p>
         <p>In order to download the data from Amazon visit Amazon's <a href="https://www.amazon.com/gp/privacycentral/dsar/preview.html" target="_blank" rel="noopener noreferrer">"Request your data" page</a>. Select "Your orders". Once the data is ready you will be able to download a .zip file with all the historical information. That's the file you need to submit here for processing.</p>
-        <p><strong>Stock Data Note:</strong> Amazon stock price data is loaded from a static file hosted online. Due to browser security restrictions (CORS), fetching this data **will likely fail** when you run this HTML file directly from your computer (<code>file:///</code>). It should work correctly when accessed via its web URL (<a href="https://amazonorderanalyzer.netlify.app" target="_blank">amazonorderanalyzer.netlify.app</a>).</p>
-        <p><em>This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate.</em></p>
+        <p>
+            <strong>Stock Data Note:</strong> Amazon stock price data is loaded from a static file for which the last day with data is <span id="stockDataLastDate">(loading...)</span>.
+            Due to browser security restrictions (CORS), fetching this data **will likely fail** when you run this HTML file directly from your computer (<code>file:///</code>). It should work correctly when accessed via its web URL (<a href="https://amazonorderanalyzer.netlify.app" target="_blank">amazonorderanalyzer.netlify.app</a>).
+        </p>
+        <p>
+             Only orders in USD are considered for the share equivalent calculations. Orders that don't have all required fields (like some Digital Orders) are also skipped during processing.
+        </p>
+        <p>
+            <em>
+                This is a Sunday morning project. 99% "vibe coded". No warranty. Results may not be totally accurate. Total time spent: Around 4 hours. Using Google's Gemini on AI Studio. Human lead: <a href="https://www.linkedin.com/in/carlossubs/" target="_blank" rel="noopener noreferrer">Carlos Fernandez</a> (<a href="https://github.com/cfsmp3" target="_blank" rel="noopener noreferrer">Github</a>).
+            </em>
+        </p>
     </details>
     <!-- End Instructions Panel -->
 
@@ -150,11 +156,11 @@
         const summaryContentList = document.getElementById('summaryContentList');
         const tooltipDiv = document.getElementById('orderTooltip');
         const canvas = document.getElementById('orderChart');
-        // New Share Summary Elements
         const shareEquivalentSummary = document.getElementById('shareEquivalentSummary');
         const totalSharesEquivalent = document.getElementById('totalSharesEquivalent');
         const totalSharesValue = document.getElementById('totalSharesValue');
         const lastStockDateSpan = document.getElementById('lastStockDate');
+        const stockDataLastDateSpan = document.getElementById('stockDataLastDate'); // For instructions
         const millionaireStatus = document.getElementById('millionaireStatus');
         const millionaireAnswerSpan = millionaireStatus?.querySelector('.answer');
 
@@ -168,13 +174,13 @@
         if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseover', handleTooltipShow); yearlySpendTableBody.addEventListener('mousemove', handleTooltipMove); }
         if (yearlySpendContainer) { yearlySpendContainer.addEventListener('mouseout', handleTooltipHide); } else if (yearlySpendTableBody) { yearlySpendTableBody.addEventListener('mouseout', handleTooltipHide); console.warn("Attaching mouseout listener to table body as fallback."); }
 
-        function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
+        function handleFileChange(event) { if (!ctx && canvas) ctx = canvas.getContext('2d'); if (!ctx) return showError("Error: Failed to get canvas context."); const file = event.target.files[0]; if (file) { statusDiv.textContent = 'Processing zip file...'; errorDiv.textContent = ''; hideOutputContainers(); if (currentChart) currentChart.destroy(); currentChart = null; if (yearlySpendTableBody) yearlySpendTableBody.innerHTML = ''; if (summaryContentList) summaryContentList.innerHTML = ''; if(stockDataLastDateSpan) stockDataLastDateSpan.textContent = '(loading...)'; activeTooltipCell = null; if (hideTooltipTimeoutId) clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; processZipFile(file); } event.target.value = null; }
 
         // --- UI Helpers ---
         function hideOutputContainers() { [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (el) el.classList.add('hidden'); }); if(tooltipDiv) tooltipDiv.classList.add('hidden'); }
         function showOutputContainers(hasData = true) { if (!hasData) return; [chartContainer, yearlySpendContainer, summaryContainer, shareEquivalentSummary].forEach(el => { if (!el) return; let show = false; if (el === chartContainer && currentChart) show = true; else if (el === yearlySpendContainer && yearlySpendTableBody?.querySelector('tr')) show = true; else if (el === summaryContainer && summaryContentList?.querySelector('li')) show = true; else if (el === shareEquivalentSummary && totalSharesEquivalent?.querySelector('.value')?.textContent !== '--') show = true; if (show) el.classList.remove('hidden'); else el.classList.add('hidden'); }); }
         function clearContainerContent(container, keepSelector = null) { if (!container) return; const nodesToRemove = []; container.childNodes.forEach(node => { let keep = false; if (keepSelector && node.nodeType === Node.ELEMENT_NODE && node.matches(keepSelector)) keep = true; if (!keep) nodesToRemove.push(node); }); nodesToRemove.forEach(node => container.removeChild(node)); }
-        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; hideOutputContainers(); }
+        function showError(message, errorObj = null) { console.error(message, errorObj); if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + message) : message; errorDiv.classList.remove('hidden'); } if (statusDiv) statusDiv.textContent = 'Processing failed.'; /* Don't hide other containers if only stock fails */ }
 
         // --- Tooltip Handlers (Revised Show/Hide with Timeout) ---
         function handleTooltipShow(event) { const targetCell = event.target.closest('.order-id-cell'); if (!targetCell || !tooltipDiv) return; if (hideTooltipTimeoutId) { clearTimeout(hideTooltipTimeoutId); hideTooltipTimeoutId = null; } if (targetCell === activeTooltipCell && !tooltipDiv.classList.contains('hidden')) { return; } activeTooltipCell = targetCell; const detailsJson = targetCell.dataset.orderDetails; if (!detailsJson) { activeTooltipCell = null; return; } try { const orderData = JSON.parse(detailsJson); let tooltipContent = ''; for (const [key, value] of Object.entries(orderData)) { if (value != null && String(value).trim() !== '' && key !== 'orderDetailsJson') tooltipContent += `<strong>${escapeHtml(key)}:</strong> ${escapeHtml(value)}<br>`; } tooltipDiv.innerHTML = tooltipContent || 'No details available.'; tooltipDiv.classList.remove('hidden'); handleTooltipMove(event); } catch (e) { console.error("Failed to parse order details JSON:", e); tooltipDiv.textContent = 'Error loading details.'; tooltipDiv.classList.remove('hidden'); activeTooltipCell = null; } }
@@ -200,11 +206,15 @@
                                 const dateHeader = findHeader(headers, ["Date"]);
                                 const closeHeader = findHeader(headers, ["Adjusted_close", "Adjusted Close"]);
                                 if (!dateHeader || !closeHeader) throw new Error(`Stock CSV missing required headers ('Date', 'Adjusted_close'). Found: ${headers.join(', ')}`);
-                                const stockPoints = results.data.map(row => { const dateStr = row[dateHeader]; const closeStr = row[closeHeader]; if (dateStr && closeStr) { const date = new Date(`${dateStr}T00:00:00`); const close = parseFloat(closeStr); if (!isNaN(date.getTime()) && !isNaN(close) && isFinite(close)) { return { x: date, y: close }; } } return null; }).filter(point => point !== null);
-                                console.log(`Successfully processed ${stockPoints.length} stock data points from CSV.`);
-                                resolve(stockPoints); // Resolve with data
-                            } catch (processingError) { reject(processingError); } // Reject on processing error
-                        }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); } // Reject on parse error
+                                let lastDateObj = null;
+                                const stockPoints = results.data.map(row => { const dateStr = row[dateHeader]; const closeStr = row[closeHeader]; if (dateStr && closeStr) { const date = new Date(`${dateStr}T00:00:00`); const close = parseFloat(closeStr); if (!isNaN(date.getTime()) && !isNaN(close) && isFinite(close)) { if (!lastDateObj || date > lastDateObj) { lastDateObj = date; } return { x: date, y: close }; } } return null; }).filter(point => point !== null);
+                                stockPoints.sort((a, b) => a.x - b.x); // Sort to be sure
+                                const finalLastDateObj = stockPoints.length > 0 ? stockPoints[stockPoints.length - 1].x : null;
+                                const lastDateString = finalLastDateObj ? finalLastDateObj.toLocaleDateString('en-CA') : 'N/A';
+                                console.log(`Successfully processed ${stockPoints.length} stock data points from CSV. Last date: ${lastDateString}`);
+                                resolve({ points: stockPoints, lastDateString: lastDateString }); // Resolve with object
+                            } catch (processingError) { reject(processingError); }
+                        }, error: (papaError) => { reject(new Error(`Failed to parse stock CSV: ${papaError.message}`)); }
                     });
                 });
             } catch (error) {
@@ -212,15 +222,14 @@
                  let errorMsg = `Note: Could not load stock data CSV. `;
                  if (window.location.protocol === 'file:') { errorMsg += `Fetching external data from local files is blocked by browser security (CORS). This feature will only work when the tool is accessed via its web URL. (${error.message})`; }
                  else { errorMsg += `Please check the file exists at the specified URL and network is available. (${error.message})`; }
-                 if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError + "\n" + errorMsg) : errorMsg; errorDiv.classList.remove('hidden'); }
-                 return null; // Indicate failure
+                 if (errorDiv) { let currentError = errorDiv.textContent; errorDiv.textContent = currentError ? (currentError.includes(errorMsg) ? currentError : currentError + "\n" + errorMsg) : errorMsg; errorDiv.classList.remove('hidden'); } // Avoid duplicate messages
+                 return { points: null, lastDateString: 'Error Loading' }; // Indicate failure
             }
         }
 
-
         // --- Core Processing Logic ---
         async function processZipFile(file) {
-            // Library Checks...
+             // Library Checks...
              if (typeof JSZip === 'undefined') return showError('Error: JSZip library not loaded.'); if (typeof Papa === 'undefined') return showError('Error: PapaParse library not loaded.'); if (typeof Chart === 'undefined') return showError('Error: Chart.js library not loaded.'); if (!Chart._adapters?._date?.prototype?._id) console.warn('Chart.js date adapter might not be fully initialized.');
 
             try {
@@ -228,57 +237,16 @@
                 const zip = await JSZip.loadAsync(file);
                 const fileProcessingPromises = [];
                 const allDataPoints = [];
-                const yearlyData = {}; // Structure: { year: { currencyCode: { total:..., maxOrderInfo:..., usdShareEquivalent?:... } } }
-                let minOrderDate = null;
-                let maxOrderDate = null;
-                let grandTotalShareEquivalent = 0; // Initialize grand total for shares
-                let lastStockPrice = null; // To store the most recent price found
-                let lastStockDate = null; // To store the date of the most recent price
+                const yearlyData = {};
+                let grandTotalShareEquivalent = 0;
+                let lastStockPrice = null;
+                let lastStockDate = null;
+                let lastStockDateStrForNote = '(loading...)'; // Default for note
 
                 statusDiv.textContent = 'Extracting and reading CSV files...';
 
                 zip.forEach((relativePath, zipEntry) => { /* ... CSV processing loop ... */
-                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) {
-                        const promise = zipEntry.async('string').then(csvString => {
-                             return new Promise((resolve, reject) => {
-                                if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`));
-                                Papa.parse(csvString, {
-                                    header: true, skipEmptyLines: true, dynamicTyping: false,
-                                    complete: (results) => {
-                                        try {
-                                            if (!results.meta?.fields) { return resolve(); }
-                                            if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors);
-                                            const headers = results.meta.fields.map(h => h ? h.trim() : '');
-                                            const dateHeader = findHeader(headers, ["Order Date", "Order date"]);
-                                            const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]);
-                                            const currencyHeader = findHeader(headers, ["Currency"]);
-                                            const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]);
-                                            if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); }
-                                            let skipped = 0; let filePoints = 0;
-                                            results.data.forEach((row, index) => {
-                                                if (!row || typeof row !== 'object') { skipped++; return; }
-                                                const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase();
-                                                if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) {
-                                                    try {
-                                                        const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr);
-                                                        if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) {
-                                                            filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name });
-                                                            if (!minOrderDate || date < minOrderDate) minOrderDate = date; if (!maxOrderDate || date > maxOrderDate) maxOrderDate = date;
-                                                            const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null, usdShareEquivalent: 0 }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; }
-                                                        } else { skipped++; }
-                                                    } catch (parseErr) { skipped++; }
-                                                } else { skipped++; }
-                                            });
-                                            if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`);
-                                            resolve();
-                                        } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); }
-                                    }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`))
-                                });
-                             });
-                        }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); });
-                        fileProcessingPromises.push(promise);
-                    }
-                }); // end zip.forEach
+                    if (!zipEntry.dir && zipEntry.name.toLowerCase().endsWith('.csv')) { const promise = zipEntry.async('string').then(csvString => { return new Promise((resolve, reject) => { if (typeof Papa === 'undefined') return reject(new Error(`PapaParse became unavailable`)); Papa.parse(csvString, { header: true, skipEmptyLines: true, dynamicTyping: false, complete: (results) => { try { if (!results.meta?.fields) { return resolve(); } if (results.errors.length > 0) console.warn(`PapaParse errors in ${zipEntry.name}:`, results.errors); const headers = results.meta.fields.map(h => h ? h.trim() : ''); const dateHeader = findHeader(headers, ["Order Date", "Order date"]); const totalHeader = findHeader(headers, ["Total Owed", "Total owed"]); const currencyHeader = findHeader(headers, ["Currency"]); const localOrderIdHeader = findHeader(headers, ["Order ID", "Order id", "OrderId"]); if (!dateHeader || !totalHeader || !currencyHeader) { return resolve(); } let skipped = 0; let filePoints = 0; results.data.forEach((row, index) => { if (!row || typeof row !== 'object') { skipped++; return; } const dateStr = row[dateHeader]; const totalStr = row[totalHeader]; const currencyCode = row[currencyHeader]?.trim().toUpperCase(); if (dateStr && totalStr != null && currencyCode && currencyCode.length === 3) { try { const date = new Date(dateStr); let cleanedTotalStr = String(totalStr).trim().replace(/,/g, '').replace(/[$\s€£]+/g, ''); const total = parseFloat(cleanedTotalStr); if (!isNaN(date.getTime()) && !isNaN(total) && isFinite(total)) { filePoints++; allDataPoints.push({ x: date, y: total, currency: currencyCode, rowData: row, fileSource: zipEntry.name }); /* Min/Max date tracking removed, done during point processing */ const year = date.getFullYear(); if (!yearlyData[year]) yearlyData[year] = {}; if (!yearlyData[year][currencyCode]) { yearlyData[year][currencyCode] = { total: 0, maxOrderAmount: -Infinity, maxOrderInfo: null, usdShareEquivalent: 0 }; } yearlyData[year][currencyCode].total += total; if (total > yearlyData[year][currencyCode].maxOrderAmount) { yearlyData[year][currencyCode].maxOrderAmount = total; yearlyData[year][currencyCode].maxOrderInfo = { row: row, headerName: localOrderIdHeader }; } } else { skipped++; } } catch (parseErr) { skipped++; } } else { skipped++; } }); if (filePoints > 0) console.log(`   Processed ${filePoints} points from ${zipEntry.name}.`); resolve(); } catch (procErr) { reject(new Error(`Processing error in ${zipEntry.name}: ${procErr.message}`)); } }, error: (err) => reject(new Error(`PapaParse failed for ${zipEntry.name}: ${err.message}`)) }); }); }).catch(err => { console.error(`Error reading/parsing ${zipEntry.name}:`, err); return Promise.resolve(); }); fileProcessingPromises.push(promise); } });
 
                 await Promise.allSettled(fileProcessingPromises);
 
@@ -289,45 +257,39 @@
                 let stockPriceMap = null;
 
                 if (allDataPoints.length > 0) {
-                    stockDataPoints = await fetchStockDataFromCSV(); // Fetch CSV data
+                    const stockFetchResult = await fetchStockDataFromCSV();
+                    stockDataPoints = stockFetchResult.points;
+                    lastStockDateStrForNote = stockFetchResult.lastDateString; // Update note date
+
+                    if (stockDataLastDateSpan) stockDataLastDateSpan.textContent = lastStockDateStrForNote; // Update UI
 
                     if (stockDataPoints) {
                         stockPriceMap = new Map();
-                        stockDataPoints.forEach(point => { // Build map AND find last price/date
-                            try {
-                                const dateKey = point.x.toLocaleDateString('en-CA');
-                                stockPriceMap.set(dateKey, point.y);
-                                if (!lastStockDate || point.x > lastStockDate) {
-                                    lastStockDate = point.x; lastStockPrice = point.y;
-                                }
-                            } catch (e) { console.warn("Error creating date key for stock map:", point.x, e); }
+                        stockDataPoints.forEach(point => { // Build map AND find last price/date object
+                            try { const dateKey = point.x.toLocaleDateString('en-CA'); stockPriceMap.set(dateKey, point.y); if (!lastStockDate || point.x > lastStockDate) { lastStockDate = point.x; lastStockPrice = point.y; } }
+                            catch (e) { console.warn("Error creating date key for stock map:", point.x, e); }
                         });
                         console.log(`Created stock price map with ${stockPriceMap.size} entries.`);
-                        if (lastStockPrice) console.log(`Last stock price found: ${lastStockPrice} on ${lastStockDate.toLocaleDateString('en-CA')}`);
+                        if (lastStockPrice) console.log(`Last stock price found: ${lastStockPrice} on ${lastStockDate?.toLocaleDateString('en-CA')}`);
                     }
 
                     // Calculate Share Equivalents and GRAND TOTAL
                     if (stockPriceMap && stockPriceMap.size > 0) {
                         console.log("Calculating USD share equivalents...");
-                        grandTotalShareEquivalent = 0; // Reset just in case
+                        grandTotalShareEquivalent = 0;
                         allDataPoints.forEach(point => {
                             if (point.currency === 'USD') {
-                                try {
-                                    const orderDateKey = point.x.toLocaleDateString('en-CA');
-                                    const stockPriceForDay = stockPriceMap.get(orderDateKey);
-                                    if (stockPriceForDay && stockPriceForDay > 0) {
-                                        const shareEquivalent = point.y / stockPriceForDay;
-                                        const year = point.x.getFullYear();
-                                        if (yearlyData[year] && yearlyData[year]['USD']) { yearlyData[year]['USD'].usdShareEquivalent += shareEquivalent; }
-                                        grandTotalShareEquivalent += shareEquivalent; // Accumulate grand total
-                                    }
-                                } catch (e) { console.error("Error during share equivalent calculation:", e, point); }
+                                try { const orderDateKey = point.x.toLocaleDateString('en-CA'); const stockPriceForDay = stockPriceMap.get(orderDateKey); if (stockPriceForDay && stockPriceForDay > 0) { const shareEquivalent = point.y / stockPriceForDay; const year = point.x.getFullYear(); if (yearlyData[year]?.[point.currency]) { yearlyData[year][point.currency].usdShareEquivalent = (yearlyData[year][point.currency].usdShareEquivalent || 0) + shareEquivalent; } grandTotalShareEquivalent += shareEquivalent; } }
+                                catch (e) { console.error("Error during share equivalent calculation:", e, point); }
                             }
                         });
-                        console.log(`Finished calculating share equivalents. Grand Total: ${grandTotalShareEquivalent.toFixed(4)} shares.`);
+                         console.log(`Finished calculating share equivalents. Grand Total: ${grandTotalShareEquivalent.toFixed(4)} shares.`);
                     } else { console.warn("Stock price map empty/unavailable, cannot calculate share equivalents."); }
 
-                } else { console.log("No valid order data points found, skipping stock data fetch and calculations."); }
+                } else {
+                    console.log("No valid order data points found, skipping stock data fetch and calculations.");
+                    if (stockDataLastDateSpan) stockDataLastDateSpan.textContent = 'N/A (No orders processed)'; // Update if no orders
+                }
 
                 if (allDataPoints.length > 0) {
                     const currencyDataMap = {}; allDataPoints.forEach(point => { if (!currencyDataMap[point.currency]) currencyDataMap[point.currency] = []; currencyDataMap[point.currency].push(point); }); Object.values(currencyDataMap).forEach(arr => arr.sort((a, b) => a.x - b.x));
@@ -336,67 +298,44 @@
                     generateChart(currencyDataMap, stockDataPoints);
                     generateYearlySpend(yearlyData);
                     generateSummary(yearlyData);
-                    // --- Call new summary function ---
-                    generateShareEquivalentSummary(grandTotalShareEquivalent, lastStockPrice, lastStockDate);
+                    generateShareEquivalentSummary(grandTotalShareEquivalent, lastStockPrice, lastStockDate); // Pass calculated values
 
                     statusDiv.textContent = 'Analysis complete.';
-                    // errorDiv might contain stock fetch note.
+                    // Keep potential stock error message visible in errorDiv
                     showOutputContainers(true);
                 } else { /* ... No data error handling ... */ let msg = 'Could not find any CSV files with required headers (Date, Total Owed, Currency) and valid data.'; if (fileProcessingPromises.length === 0) msg = 'No .csv files found in the zip.'; showError(msg); showOutputContainers(false); }
             } catch (err) { showError(`Error processing ZIP: ${err.message}`, err); }
         }
 
-        // --- Chart Generation ---
-        function generateChart(currencyDataMap, stockData) { /* ... (Keep previous stock-handling version) ... */ if (!ctx) return showError("Cannot generate chart, canvas context is invalid."); const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length); currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); }); const hasStockData = stockData && stockData.length > 0; if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); } else { console.log("No stock data to plot or fetch failed."); } if (currentChart) currentChart.destroy(); currentChart = null; if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; } try { const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } }; if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; } currentChart = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, } }); } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } } }
+        // --- Chart Generation (Handles Stock Data, Scatter, Legend Fix) ---
+        function generateChart(currencyDataMap, stockData) { /* ... (Keep previous version) ... */ if (!ctx) return showError("Cannot generate chart, canvas context is invalid."); const datasets = []; const currencies = Object.keys(currencyDataMap).sort(); const orderColors = generateDistinctColors(currencies.length); currencies.forEach((currencyCode, index) => { const color = orderColors[index % orderColors.length]; datasets.push({ label: currencyCode, data: currencyDataMap[currencyCode], borderColor: color, backgroundColor: color, showLine: false, pointRadius: 4, pointHoverRadius: 6, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yOrders' }); }); const hasStockData = stockData && stockData.length > 0; if (hasStockData) { datasets.push({ label: 'AMZN Stock Price', data: stockData, borderColor: 'rgba(100, 100, 100, 0.8)', backgroundColor: 'rgba(100, 100, 100, 0.1)', borderWidth: 2, fill: false, tension: 0.1, pointRadius: 0, pointHoverRadius: 0, showLine: true, parsing: { xAxisKey: 'x', yAxisKey: 'y' }, yAxisID: 'yStock' }); } else { console.log("No stock data to plot or fetch failed."); } if (currentChart) currentChart.destroy(); currentChart = null; if (datasets.length === 0) { console.log("No datasets to generate chart."); if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height); return; } try { const scalesConfig = { x: { type: 'time', title: { display: true, text: 'Date' }, time: { unit: 'year', tooltipFormat: 'yyyy-MM-dd', displayFormats: { year: 'yyyy', quarter: '[Q]Q yyyy', month: 'MMM yyyy', week: 'MMM d yyyy', day: 'MMM d yyyy' } }, ticks: { major: { enabled: true }, autoSkip: true, maxRotation: 70, minRotation: 0 } }, yOrders: { type: 'linear', display: true, position: 'left', beginAtZero: true, title: { display: true, text: 'Order Amount' }, ticks: { callback: function(value) { return Number(value.toString()); } } } }; if (hasStockData) { scalesConfig.yStock = { type: 'linear', display: true, position: 'right', beginAtZero: false, title: { display: true, text: 'AMZN Stock Price (USD)' }, ticks: { callback: function(value) { return '$' + Number(value.toFixed(2)); } }, grid: { drawOnChartArea: false, }, }; } currentChart = new Chart(ctx, { type: 'line', data: { datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: scalesConfig, plugins: { legend: { display: true, position: 'top', labels: { usePointStyle: true, pointStyle: function(context) { const label = context.dataset?.label; return label === 'AMZN Stock Price' ? 'line' : 'circle'; } } }, tooltip: { callbacks: { label: function(context) { const datasetLabel = context.dataset?.label || ''; const value = context.parsed?.y; let displayLabel = datasetLabel; if (value !== null && value !== undefined) { if (datasetLabel === 'AMZN Stock Price') { displayLabel = `AMZN: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)}`; } else if (datasetLabel) { try { displayLabel = `${datasetLabel}: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: datasetLabel }).format(value)}`; } catch (e) { displayLabel = `${datasetLabel} ${value}`; } } else { displayLabel = value; } } else { displayLabel = datasetLabel + ': N/A'; } return displayLabel; }, title: items => items.length ? new Date(items[0].parsed.x).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) : '' } } }, animation: { duration: 300 }, } }); } catch (chartError) { showError(`Error displaying chart: ${chartError.message}`, chartError); if (currentChart) { currentChart.destroy(); currentChart = null; } } }
 
         // --- Yearly Spend Generation ---
-        function generateYearlySpend(yearlyData) { /* ... (Keep previous version with 6 columns) ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; } } else { amountCell.textContent = 'N/A'; } const shareCell = row.insertCell(); if (currencyCode === 'USD' && currencyInfo.usdShareEquivalent && currencyInfo.usdShareEquivalent > 0) { shareCell.textContent = currencyInfo.usdShareEquivalent.toFixed(4); shareCell.style.textAlign = 'right'; } else { shareCell.textContent = ''; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { /* handle error */ } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
+        function generateYearlySpend(yearlyData) { /* ... (Keep previous version with 6 columns) ... */ if (!yearlySpendTableBody) { return console.error("Yearly spend table body not found."); } yearlySpendTableBody.innerHTML = ''; const sortedYears = Object.keys(yearlyData).sort((a, b) => b - a); if (sortedYears.length === 0) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly data available.'; cell.style.textAlign = 'center'; return; } let hasContent = false; let previousYear = null; sortedYears.forEach(year => { const yearCurrencies = yearlyData[year]; const sortedCurrencies = Object.keys(yearCurrencies).sort(); sortedCurrencies.forEach((currencyCode) => { hasContent = true; const currencyInfo = yearCurrencies[currencyCode]; const row = yearlySpendTableBody.insertRow(); if (year !== previousYear) { row.classList.add('year-separator'); previousYear = year; } row.insertCell().textContent = year; row.insertCell().textContent = currencyCode; const totalCell = row.insertCell(); try { totalCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.total); } catch(e) { totalCell.textContent = `${currencyInfo.total.toFixed(2)} ${currencyCode}`; } const amountCell = row.insertCell(); const maxOrderInfo = currencyInfo.maxOrderInfo; if (maxOrderInfo) { try { amountCell.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(currencyInfo.maxOrderAmount); } catch(e) { amountCell.textContent = `${currencyInfo.maxOrderAmount.toFixed(2)} ${currencyCode}`; } } else { amountCell.textContent = 'N/A'; } const shareCell = row.insertCell(); if (currencyCode === 'USD' && currencyInfo.usdShareEquivalent && currencyInfo.usdShareEquivalent > 0) { shareCell.textContent = currencyInfo.usdShareEquivalent.toFixed(4); shareCell.style.textAlign = 'right'; } else { shareCell.textContent = ''; } const orderCell = row.insertCell(); const hasMaxOrderInfo = !!maxOrderInfo; const specificHeaderName = hasMaxOrderInfo ? maxOrderInfo.headerName : null; const hasSpecificHeader = !!specificHeaderName; const maxRowObject = hasMaxOrderInfo ? maxOrderInfo.row : null; const orderIdValue = maxRowObject && specificHeaderName ? maxRowObject[specificHeaderName] : undefined; const hasValidOrderIdValue = orderIdValue != null && String(orderIdValue).trim() !== ''; if (hasMaxOrderInfo && hasSpecificHeader && hasValidOrderIdValue) { orderCell.textContent = orderIdValue; orderCell.classList.add('order-id-cell'); try { orderCell.dataset.orderDetails = JSON.stringify(maxRowObject); } catch (e) { /* ignore error */ } } else { orderCell.textContent = 'N/A'; } }); }); if (!hasContent) { const row = yearlySpendTableBody.insertRow(); const cell = row.insertCell(); cell.colSpan = 6; cell.textContent = 'No yearly spend data found.'; cell.style.textAlign = 'center'; } }
 
         // --- Summary Generation ---
         function generateSummary(yearlyData) { /* ... (Keep previous version) ... */ if (!summaryContentList) return; summaryContentList.innerHTML = ''; const currencyGrandTotals = {}; Object.values(yearlyData).forEach(yearCurrencies => { Object.entries(yearCurrencies).forEach(([currencyCode, currencyInfo]) => { currencyGrandTotals[currencyCode] = (currencyGrandTotals[currencyCode] || 0) + currencyInfo.total; }); }); const sortedCurrencies = Object.keys(currencyGrandTotals).sort(); if (sortedCurrencies.length === 0) { const li = document.createElement('li'); li.textContent = 'No overall totals to display.'; summaryContentList.appendChild(li); } else { sortedCurrencies.forEach(currencyCode => { const total = currencyGrandTotals[currencyCode]; const li = document.createElement('li'); try { li.textContent = `Total (${currencyCode}): ${new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode }).format(total)}`; } catch (e) { li.textContent = `Total (${currencyCode}): ${total.toFixed(2)} ${currencyCode}`; console.warn(`Could not format currency ${currencyCode} for summary.`, e); } summaryContentList.appendChild(li); }); } }
 
         // --- New Function: Generate Share Equivalent Summary ---
         function generateShareEquivalentSummary(totalShares, lastPrice, lastDate) {
-             if (!shareEquivalentSummary || !totalSharesEquivalent || !totalSharesValue || !lastStockDateSpan || !millionaireStatus || !millionaireAnswerSpan) {
-                 console.error("Share equivalent summary elements not found.");
-                 return;
-             }
-             // Reset fields
-             const totalSharesSpan = totalSharesEquivalent.querySelector('.value');
-             const totalValueSpan = totalSharesValue.querySelector('.value');
-             totalSharesSpan.textContent = '--';
-             totalValueSpan.textContent = '--';
-             lastStockDateSpan.textContent = 'N/A';
-             millionaireAnswerSpan.textContent = '--';
-             millionaireAnswerSpan.className = 'answer';
-             millionaireStatus.classList.add('hidden');
-
+             if (!shareEquivalentSummary || !totalSharesEquivalent || !totalSharesValue || !lastStockDateSpan || !millionaireStatus || !millionaireAnswerSpan) { console.error("Share equivalent summary elements not found."); return; }
+             const totalSharesSpan = totalSharesEquivalent.querySelector('.value'); const totalValueSpan = totalSharesValue.querySelector('.value');
+             totalSharesSpan.textContent = '--'; totalValueSpan.textContent = '--'; lastStockDateSpan.textContent = 'N/A'; millionaireAnswerSpan.textContent = '--'; millionaireAnswerSpan.className = 'answer'; millionaireStatus.classList.add('hidden'); // Hide status by default
 
              if (totalShares > 0) {
                  totalSharesSpan.textContent = totalShares.toFixed(4);
                  if (lastPrice && lastDate) {
                      const finalValue = totalShares * lastPrice;
-                     lastStockDateSpan.textContent = lastDate.toLocaleDateString('en-CA'); // Show date
+                     lastStockDateSpan.textContent = lastDate.toLocaleDateString('en-CA'); // Show formatted date
                      totalValueSpan.textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(finalValue);
-
-                     // Check millionaire status
-                     if (finalValue >= 1000000) {
-                         millionaireAnswerSpan.textContent = 'YES!';
-                         millionaireAnswerSpan.className = 'answer answer-yes';
-                     } else {
-                         millionaireAnswerSpan.textContent = 'No';
-                          millionaireAnswerSpan.className = 'answer answer-no';
-                     }
-                     millionaireStatus.classList.remove('hidden'); // Show the paragraph
-                 } else {
-                     totalValueSpan.textContent = 'N/A (Missing latest stock price)';
-                 }
+                     if (finalValue >= 1000000) { millionaireAnswerSpan.textContent = 'YES!'; millionaireAnswerSpan.className = 'answer answer-yes'; }
+                     else { millionaireAnswerSpan.textContent = 'No'; millionaireAnswerSpan.className = 'answer answer-no'; }
+                     millionaireStatus.classList.remove('hidden'); // Show status paragraph
+                 } else { totalValueSpan.textContent = 'N/A (Missing latest stock price)'; }
              } else {
-                 totalSharesSpan.textContent = '0.0000';
-                 totalValueSpan.textContent = '$0.00';
-                 millionaireAnswerSpan.textContent = 'No'; // Show 'No' if 0 shares
-                  millionaireAnswerSpan.className = 'answer answer-no';
-                  millionaireStatus.classList.remove('hidden'); // Show the 'No' status
+                 totalSharesSpan.textContent = '0.0000'; totalValueSpan.textContent = '$0.00';
+                 millionaireAnswerSpan.textContent = 'No'; millionaireAnswerSpan.className = 'answer answer-no';
+                 millionaireStatus.classList.remove('hidden'); // Show 'No' status even for 0 shares
              }
         }
 
@@ -404,8 +343,9 @@
         function generateDistinctColors(count) { if (count <= 0) return []; const colors = []; const sat = 70; const light = 50; const step = count > 1 ? 360 / count : 0; for (let i = 0; i < count; i++) colors.push(`hsl(${Math.round(i * step) % 360}, ${sat}%, ${light}%)`); return colors; }
         function findHeader(actualHeaders, potentialNames) { const potentialLower = potentialNames.map(n => n.toLowerCase()); for (const header of actualHeaders) { const trimmedHeader = header ? header.trim() : ''; if (trimmedHeader && potentialLower.includes(trimmedHeader.toLowerCase())) return trimmedHeader; } return null; }
 
-        // --- Initial Setup ---
-        document.addEventListener('DOMContentLoaded', () => { if (canvas && !ctx) ctx = canvas.getContext('2d'); if (!ctx && canvas) console.error("Canvas context failed"); else if (!canvas) console.error("Canvas not found"); });
+        // --- Tooltip/Init functions from previous step ---
+        // ... handleTooltipShow, handleTooltipHide, handleTooltipMove, escapeHtml ...
+        // ... DOMContentLoaded ...
 
     </script>
 
